@@ -30,6 +30,7 @@ from backend.blocks.conference_paper.analysis import (
     extract_paper_xml,
     extract_text_content,
     has_complete_question_answers,
+    is_authorization_error,
     validate_question_answers,
 )
 from backend.blocks.conference_paper.models import (
@@ -126,7 +127,7 @@ def test_extract_paper_xml_accepts_documented_page_envelope() -> None:
 @pytest.mark.parametrize(
     "wrapped",
     [
-        "Here is the evidence:\n```xml\n<paper id=\"x\"><page num=\"1\">A</page></paper>\n```",
+        'Here is the evidence:\n```xml\n<paper id="x"><page num="1">A</page></paper>\n```',
         "{\"result\":\"<paper id='x'><page num='1'>A</page></paper>\"}",
         "&lt;paper id=&quot;x&quot;&gt;&lt;page num=&quot;1&quot;&gt;A&lt;/page&gt;&lt;/paper&gt;",
     ],
@@ -328,7 +329,9 @@ class CompleteQuestionAnswerGeneratorRecorder:
         questions: list[str],
     ) -> str:
         self.calls.append((paper.paper_key, report, list(questions)))
-        return "# Question 1\nComplete answer one.\n\n# Question 2\nComplete answer two."
+        return (
+            "# Question 1\nComplete answer one.\n\n# Question 2\nComplete answer two."
+        )
 
 
 @pytest.mark.asyncio
@@ -437,6 +440,21 @@ class ConcurrencyRecorder:
         return successful_result(paper)
 
 
+class AuthorizationFailureRecorder:
+    def __init__(self, fail_after: int) -> None:
+        self.calls: list[str] = []
+        self.fail_after = fail_after
+
+    async def analyze(self, paper: PaperTask, questions: list[str]) -> AnalysisResult:
+        self.calls.append(paper.paper_key)
+        if len(self.calls) > self.fail_after:
+            raise RuntimeError(
+                "HTTPClientError: HTTP 401 Error: Unauthorized, "
+                'Body: {"error":{"message":"Invalid Authorization"}}'
+            )
+        return successful_result(paper)
+
+
 @pytest.mark.asyncio
 async def test_local_orchestration_caps_analysis_concurrency_at_three() -> None:
     papers = [paper_task(f"2503.{index:05d}") for index in range(8)]
@@ -485,6 +503,53 @@ async def test_local_orchestration_logs_the_original_paper_failure(caplog) -> No
     assert f"arxiv_id={task.arxiv_id}" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_authorization_failure_opens_circuit_and_defers_remaining() -> None:
+    papers = [paper_task(f"2503.{index:05d}") for index in range(6)]
+    recorder = AuthorizationFailureRecorder(fail_after=2)
+    persisted: list[AnalysisResult] = []
+
+    async def persist(result: AnalysisResult) -> None:
+        persisted.append(result)
+
+    results = await analyze_many(
+        papers,
+        recorder,
+        concurrency=1,
+        on_result=persist,
+    )
+
+    assert recorder.calls == [paper.paper_key for paper in papers[:3]]
+    assert [result.status for result in results[:3]] == [
+        AnalysisStatus.SUCCESS,
+        AnalysisStatus.SUCCESS,
+        AnalysisStatus.FAILED,
+    ]
+    assert all(
+        result.error_code == "ANALYSIS_DEFERRED_AUTHORIZATION_CIRCUIT_OPEN"
+        for result in results[3:]
+    )
+    assert [result.paper_key for result in persisted] == [
+        paper.paper_key for paper in papers[:3]
+    ]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "HTTP 401 Error: Unauthorized",
+        "Invalid Authorization",
+        "request was unauthorized",
+    ],
+)
+def test_authorization_error_detection(message: str) -> None:
+    assert is_authorization_error(RuntimeError(message))
+
+
+def test_non_authorization_error_does_not_open_circuit() -> None:
+    assert not is_authorization_error(RuntimeError("HTTP 429 Too Many Requests"))
+
+
 def test_block_declares_separate_mcp_and_llm_credentials() -> None:
     block = AnalyzeConferencePapersBlock()
     credential_fields = block.input_schema.get_credentials_fields()
@@ -505,6 +570,10 @@ def test_block_declares_separate_mcp_and_llm_credentials() -> None:
     input_data = block.Input(paper_tasks=[])
     assert input_data.analysis_mode == "structured_llm"
     assert input_data.model.value == "gpt-5.6-luna"
+    assert input_data.analysis_concurrency == 1
+    assert input_data.analysis_request_interval_seconds == 4
+    assert input_data.max_new_analyses_per_run == 400
+    assert input_data.authorization_circuit_breaker is True
 
 
 @pytest.mark.asyncio

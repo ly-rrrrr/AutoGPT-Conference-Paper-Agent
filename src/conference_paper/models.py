@@ -49,7 +49,10 @@ class ConferenceRunInput(ContractModel):
     topics: list[str] = Field(default_factory=list)
     max_papers: int = Field(default=0, ge=0, le=10_000)
     paper_questions: list[str] = Field(min_length=1, max_length=10)
-    analysis_concurrency: int = Field(default=3, ge=1, le=3)
+    analysis_concurrency: int = Field(default=1, ge=1, le=3)
+    analysis_request_interval_seconds: float = Field(default=4.0, ge=0, le=300)
+    max_new_analyses_per_run: int = Field(default=400, ge=0, le=10_000)
+    authorization_circuit_breaker: bool = True
 
     @field_validator("topics")
     @classmethod
@@ -321,9 +324,7 @@ class PaperQARecord(ContractModel):
     status: AnalysisStatus
 
     @classmethod
-    def from_analysis(
-        cls, paper: PaperTask, result: AnalysisResult
-    ) -> "PaperQARecord":
+    def from_analysis(cls, paper: PaperTask, result: AnalysisResult) -> "PaperQARecord":
         if result.paper_key != paper.paper_key:
             raise ValueError("analysis result paper_key must match paper paper_key")
         answer = None

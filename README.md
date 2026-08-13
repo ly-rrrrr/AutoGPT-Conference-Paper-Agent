@@ -128,7 +128,10 @@ Graph 默认模型为 `gpt-5.6-luna`；如果你的服务不支持它，请在�
   "topics": [],
   "max_papers": 3,
   "likes_strategy": "alphaxiv_api",
-  "analysis_concurrency": 3,
+  "analysis_concurrency": 1,
+  "analysis_request_interval_seconds": 4,
+  "max_new_analyses_per_run": 400,
+  "authorization_circuit_breaker": true,
   "paper_questions": [
     "这篇论文解决了什么研究问题？",
     "总结核心方法、主要贡献、关键实验结果与局限性。"
@@ -136,7 +139,14 @@ Graph 默认模型为 `gpt-5.6-luna`；如果你的服务不支持它，请在�
 }
 ```
 
-确认生成 3 份单篇报告后，把 `max_papers` 改为 `0`、换一个新的 `run_id`，即可进行 CVPR 2026 全量处理。
+确认生成 3 份单篇报告后，把 `max_papers` 改为 `0`、换一个新的 `run_id`，即可进行 CVPR 2026 全量处理。第三方模型平台出现间歇性 401 时，建议保持并发为 `1`；系统会控制请求启动间隔、限制单轮新增分析数，并在首个 401 后停止本轮后续调用。使用同一 `run_id` 再次执行即可继续补跑。
+
+| 风控配置 | 默认值 | 说明 |
+|---|---:|---|
+| `analysis_concurrency` | `1` | 同时执行的论文分析数；第三方平台优先保持 1 |
+| `analysis_request_interval_seconds` | `4` | 相邻 LLM 请求的最小启动间隔（秒） |
+| `max_new_analyses_per_run` | `400` | 单轮最多新增分析数；`0` 表示不限制 |
+| `authorization_circuit_breaker` | `true` | 首次遇到 401 后立即停止发起本轮新请求 |
 
 ## 运行产物
 

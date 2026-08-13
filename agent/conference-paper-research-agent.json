@@ -28,7 +28,10 @@
           "run_id": "cvpr-2026-full",
           "likes_strategy": "alphaxiv_api",
           "bridge_url": "http://host.docker.internal:8765",
-          "analysis_concurrency": 3
+          "analysis_concurrency": 1,
+          "analysis_request_interval_seconds": 4,
+          "max_new_analyses_per_run": 400,
+          "authorization_circuit_breaker": true
         },
         "description": "CVPR 2026 full research run configuration",
         "advanced": false
@@ -151,6 +154,38 @@
           "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
           "source_name": "result_#_run_id",
           "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000026",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_analysis_concurrency",
+          "sink_name": "analysis_concurrency",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000027",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_analysis_request_interval_seconds",
+          "sink_name": "analysis_request_interval_seconds",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000028",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_max_new_analyses_per_run",
+          "sink_name": "max_new_analyses_per_run",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000029",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_authorization_circuit_breaker",
+          "sink_name": "authorization_circuit_breaker",
           "is_static": true
         },
         {
@@ -298,7 +333,10 @@
       "id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
       "block_id": "c1d4e7a9-2b58-4f63-8c90-5e7a1d3b6f42",
       "input_default": {
-        "analysis_concurrency": 3,
+        "analysis_concurrency": 1,
+        "analysis_request_interval_seconds": 4,
+        "max_new_analyses_per_run": 400,
+        "authorization_circuit_breaker": true,
         "analysis_mode": "structured_llm",
         "model": "gpt-5.6-luna"
       },
@@ -315,6 +353,38 @@
           "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
           "source_name": "result_#_run_id",
           "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000026",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_analysis_concurrency",
+          "sink_name": "analysis_concurrency",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000027",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_analysis_request_interval_seconds",
+          "sink_name": "analysis_request_interval_seconds",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000028",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_max_new_analyses_per_run",
+          "sink_name": "max_new_analyses_per_run",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000029",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_authorization_circuit_breaker",
+          "sink_name": "authorization_circuit_breaker",
           "is_static": true
         },
         {
@@ -475,7 +545,10 @@
             "What research problem does this paper solve?",
             "Summarize the core method, main contributions, key experimental results, and limitations."
           ],
-          "analysis_concurrency": 3
+          "analysis_concurrency": 1,
+          "analysis_request_interval_seconds": 4,
+          "max_new_analyses_per_run": 400,
+          "authorization_circuit_breaker": true
         }
       },
       "metadata": {
@@ -714,6 +787,38 @@
       "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
       "source_name": "result_#_run_id",
       "sink_name": "run_id",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000026",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "result_#_analysis_concurrency",
+      "sink_name": "analysis_concurrency",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000027",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "result_#_analysis_request_interval_seconds",
+      "sink_name": "analysis_request_interval_seconds",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000028",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "result_#_max_new_analyses_per_run",
+      "sink_name": "max_new_analyses_per_run",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000029",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "result_#_authorization_circuit_breaker",
+      "sink_name": "authorization_circuit_breaker",
       "is_static": true
     },
     {

@@ -22,7 +22,10 @@ from backend.blocks.conference_paper.models import (
     PaperQARecord,
     PaperTask,
 )
-from backend.blocks.conference_paper.checkpoints import DEFAULT_OUTPUT_ROOT, JsonlCheckpoint
+from backend.blocks.conference_paper.checkpoints import (
+    DEFAULT_OUTPUT_ROOT,
+    JsonlCheckpoint,
+)
 from backend.blocks.conference_paper.results import write_analysis_report
 from backend.blocks.llm import (
     AICredentials,
@@ -51,6 +54,10 @@ MAX_ANALYSIS_CONCURRENCY = 3
 MAX_ERROR_DETAIL_LENGTH = 500
 ANALYSIS_BATCH_SIZE = 50
 MAX_INLINE_ANALYSIS_RESULTS = 100
+DEFAULT_ANALYSIS_REQUEST_INTERVAL_SECONDS = 4.0
+DEFAULT_MAX_NEW_ANALYSES_PER_RUN = 400
+AUTHORIZATION_CIRCUIT_OPEN_ERROR = "ANALYSIS_DEFERRED_AUTHORIZATION_CIRCUIT_OPEN"
+RUN_LIMIT_DEFERRED_ERROR = "ANALYSIS_DEFERRED_RUN_LIMIT"
 PAPER_ANALYSIS_FORMAT = {
     "paper_key": "The exact paper_key supplied in the request.",
     "research_problem": "Research problem, with [page N] citations.",
@@ -285,10 +292,24 @@ class AutoGPTCompleteQuestionAnswerGenerator:
         credentials: AICredentials,
         resolved_credentials: APIKeyCredentials,
         model: LlmModel,
+        request_interval_seconds: float = DEFAULT_ANALYSIS_REQUEST_INTERVAL_SECONDS,
     ):
         self._credentials = credentials
         self._resolved_credentials = resolved_credentials
         self._model = model
+        self._request_interval_seconds = request_interval_seconds
+        self._request_lock = asyncio.Lock()
+        self._next_request_at = 0.0
+
+    async def _wait_for_request_slot(self) -> None:
+        if self._request_interval_seconds <= 0:
+            return
+        async with self._request_lock:
+            loop = asyncio.get_running_loop()
+            delay = self._next_request_at - loop.time()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            self._next_request_at = loop.time() + self._request_interval_seconds
 
     async def generate(
         self,
@@ -296,13 +317,14 @@ class AutoGPTCompleteQuestionAnswerGenerator:
         report: str,
         questions: list[str],
     ) -> str:
+        await self._wait_for_request_slot()
         block = AITextGeneratorBlock()
         response = await block.run_once(
             AITextGeneratorBlock.Input(
                 prompt=build_complete_qa_prompt(paper, report, questions),
                 model=self._model,
                 credentials=self._credentials,
-                retry=2,
+                retry=1,
             ),
             "response",
             credentials=self._resolved_credentials,
@@ -327,10 +349,29 @@ class AnalyzeConferencePapersBlock(Block):
             description="Selected conference papers"
         )
         analysis_concurrency: int = SchemaField(
-            default=3,
+            default=1,
             ge=1,
             le=3,
             description="Maximum concurrent paper analyses",
+        )
+        analysis_request_interval_seconds: float = SchemaField(
+            default=DEFAULT_ANALYSIS_REQUEST_INTERVAL_SECONDS,
+            ge=0,
+            le=300,
+            description="Minimum interval between LLM request starts",
+            advanced=True,
+        )
+        max_new_analyses_per_run: int = SchemaField(
+            default=DEFAULT_MAX_NEW_ANALYSES_PER_RUN,
+            ge=0,
+            le=10_000,
+            description="Maximum uncached papers analyzed per run; 0 means unlimited",
+            advanced=True,
+        )
+        authorization_circuit_breaker: bool = SchemaField(
+            default=True,
+            description="Stop starting new analyses after an authorization failure",
+            advanced=True,
         )
         model: LlmModel = SchemaField(
             default=LlmModel.GPT5_6_LUNA,
@@ -446,9 +487,10 @@ class AnalyzeConferencePapersBlock(Block):
                     for paper in remaining
                 }
                 by_key = {**completed, **failures}
-                yield "analyses", [
-                    by_key[paper.paper_key] for paper in input_data.paper_tasks
-                ]
+                yield (
+                    "analyses",
+                    [by_key[paper.paper_key] for paper in input_data.paper_tasks],
+                )
                 return
             analyzer = ReportQuestionAnswerAnalyzer(
                 AlphaXivMCPReportReader(access_token),
@@ -456,12 +498,16 @@ class AnalyzeConferencePapersBlock(Block):
                     input_data.llm_credentials,
                     llm_credentials,
                     input_data.model,
+                    input_data.analysis_request_interval_seconds,
                 ),
             )
+        scheduled = remaining
+        deferred_by_run_limit: list[PaperTask] = []
+        if input_data.max_new_analyses_per_run > 0:
+            scheduled = remaining[: input_data.max_new_analyses_per_run]
+            deferred_by_run_limit = remaining[input_data.max_new_analyses_per_run :]
         compact_output = len(input_data.paper_tasks) > MAX_INLINE_ANALYSIS_RESULTS
-        papers_by_key = {
-            paper.paper_key: paper for paper in input_data.paper_tasks
-        }
+        papers_by_key = {paper.paper_key: paper for paper in input_data.paper_tasks}
 
         async def persist_analysis(result: AnalysisResult) -> None:
             await checkpoint.append(result)
@@ -476,17 +522,28 @@ class AnalyzeConferencePapersBlock(Block):
             )
 
         fresh = await analyze_many(
-            remaining,
+            scheduled,
             analyzer,
             input_data.analysis_concurrency,
             input_data.analysis_mode,
             persist_analysis,
             retain_results=not compact_output,
+            authorization_circuit_breaker=input_data.authorization_circuit_breaker,
         )
         if compact_output:
             yield "analyses", []
             return
         by_key = {**completed, **{result.paper_key: result for result in fresh}}
+        by_key.update(
+            {
+                paper.paper_key: deferred_analysis_result(
+                    paper,
+                    input_data.analysis_mode,
+                    RUN_LIMIT_DEFERRED_ERROR,
+                )
+                for paper in deferred_by_run_limit
+            }
+        )
         yield "analyses", [by_key[paper.paper_key] for paper in input_data.paper_tasks]
 
 
@@ -497,11 +554,25 @@ async def analyze_many(
     analysis_mode: AnalysisMode | None = None,
     on_result: Callable[[AnalysisResult], Awaitable[None]] | None = None,
     retain_results: bool = True,
+    authorization_circuit_breaker: bool = True,
 ) -> list[AnalysisResult]:
     semaphore = asyncio.Semaphore(min(max(concurrency, 1), MAX_ANALYSIS_CONCURRENCY))
+    authorization_circuit_open = asyncio.Event()
 
     async def guarded(paper: PaperTask) -> AnalysisResult:
+        if authorization_circuit_open.is_set():
+            return deferred_analysis_result(
+                paper,
+                analysis_mode,
+                AUTHORIZATION_CIRCUIT_OPEN_ERROR,
+            )
         async with semaphore:
+            if authorization_circuit_open.is_set():
+                return deferred_analysis_result(
+                    paper,
+                    analysis_mode,
+                    AUTHORIZATION_CIRCUIT_OPEN_ERROR,
+                )
             try:
                 result = await analyzer.analyze(paper, paper.questions)
             except Exception as error:
@@ -516,6 +587,8 @@ async def analyze_many(
                     error_code="PAPER_ANALYSIS_FAILED",
                     error_detail=build_analysis_error_detail(error),
                 )
+                if authorization_circuit_breaker and is_authorization_error(error):
+                    authorization_circuit_open.set()
             result = result.model_copy(
                 update={
                     "analysis_mode": result.analysis_mode or analysis_mode,
@@ -533,6 +606,29 @@ async def analyze_many(
         if retain_results:
             retained.extend(completed)
     return retained
+
+
+def deferred_analysis_result(
+    paper: PaperTask,
+    analysis_mode: AnalysisMode | None,
+    error_code: str,
+) -> AnalysisResult:
+    return AnalysisResult(
+        paper_key=paper.paper_key,
+        status=AnalysisStatus.FAILED,
+        error_code=error_code,
+        analysis_mode=analysis_mode,
+        questions=list(paper.questions),
+    )
+
+
+def is_authorization_error(error: Exception) -> bool:
+    message = str(error).casefold()
+    return (
+        "http 401" in message
+        or "invalid authorization" in message
+        or "unauthorized" in message
+    )
 
 
 def build_analysis_error_detail(error: Exception) -> str:
@@ -632,8 +728,7 @@ def build_complete_qa_prompt(
     questions: list[str],
 ) -> str:
     numbered_questions = "\n".join(
-        f"{index}. {question}"
-        for index, question in enumerate(questions, start=1)
+        f"{index}. {question}" for index, question in enumerate(questions, start=1)
     )
     return f"""You are reading the alphaXiv general report for this paper:
 Title: {paper.title}
@@ -688,9 +783,7 @@ def build_report_evidence_xml(paper_url: str, report: str) -> str:
 
 def describe_mcp_content(content: list[dict[str, Any]]) -> str:
     text_lengths = [
-        len(item.get("text", ""))
-        for item in content
-        if item.get("type") == "text"
+        len(item.get("text", "")) for item in content if item.get("type") == "text"
     ]
     content_types = [str(item.get("type", "unknown")) for item in content]
     return f"types={content_types}, text_lengths={text_lengths}"
