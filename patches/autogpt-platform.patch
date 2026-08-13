@@ -1,0 +1,2192 @@
+diff --git a/autogpt_platform/backend/.gitignore b/autogpt_platform/backend/.gitignore
+index 6e688311a..1cd6c42c5 100644
+--- a/autogpt_platform/backend/.gitignore
++++ b/autogpt_platform/backend/.gitignore
+@@ -3,6 +3,9 @@ database.db
+ database.db-journal
+ dev.db
+ dev.db-journal
++conference-paper-bridge*.db
++conference-paper-bridge*.db-shm
++conference-paper-bridge*.db-wal
+ build/
+ config.json
+ secrets/*
+diff --git a/autogpt_platform/backend/backend/blocks/io.py b/autogpt_platform/backend/backend/blocks/io.py
+index b4ff8f7a6..5d59d74db 100644
+--- a/autogpt_platform/backend/backend/blocks/io.py
++++ b/autogpt_platform/backend/backend/blocks/io.py
+@@ -26,6 +26,43 @@ from backend.util.type import LongTextType, MediaFileType, ShortTextType
+ config = Config()
+ 
+ 
++def _infer_json_schema(value: Any) -> dict[str, Any]:
++    if isinstance(value, bool):
++        return {"type": "boolean"}
++    if isinstance(value, int):
++        return {"type": "integer"}
++    if isinstance(value, float):
++        return {"type": "number"}
++    if isinstance(value, str):
++        return {"type": "string"}
++    if isinstance(value, date):
++        return {"type": "string", "format": "date"}
++    if isinstance(value, time):
++        return {"type": "string", "format": "time"}
++    if isinstance(value, list):
++        item_schemas = [_infer_json_schema(item) for item in value]
++        distinct_item_schemas: list[dict[str, Any]] = []
++        for item_schema in item_schemas:
++            if item_schema not in distinct_item_schemas:
++                distinct_item_schemas.append(item_schema)
++        if not item_schemas:
++            items: dict[str, Any] = {"type": "string"}
++        elif len(distinct_item_schemas) == 1:
++            items = distinct_item_schemas[0]
++        else:
++            items = {"anyOf": distinct_item_schemas}
++        return {"type": "array", "items": items}
++    if isinstance(value, dict):
++        return {
++            "type": "object",
++            "properties": {
++                str(key): _infer_json_schema(item) for key, item in value.items()
++            },
++            "additionalProperties": False,
++        }
++    return {}
++
++
+ class AgentInputBlock(Block):
+     """
+     This block is used to provide input to the graph.
+@@ -56,7 +93,10 @@ class AgentInputBlock(Block):
+         )
+ 
+         def generate_schema(self):
+-            return copy.deepcopy(self.get_field_schema("value"))
++            schema = copy.deepcopy(self.get_field_schema("value"))
++            if self.value is not None:
++                schema.update(_infer_json_schema(self.value))
++            return schema
+ 
+     class Output(BlockSchema):
+         # Use BlockSchema to avoid automatic error field for interface definition
+@@ -192,8 +232,11 @@ class AgentOutputBlock(Block):
+         if input_data.format:
+             try:
+                 formatter = TextFormatter(autoescape=input_data.escape_html)
+-                yield "output", await formatter.format_string(
+-                    input_data.format, {input_data.name: input_data.value}
++                yield (
++                    "output",
++                    await formatter.format_string(
++                        input_data.format, {input_data.name: input_data.value}
++                    ),
+                 )
+             except Exception as e:
+                 yield "output", f"Error: {e}, {input_data.value}"
+@@ -453,10 +496,13 @@ class AgentFileInputBlock(AgentInputBlock):
+         # for_block_output: smart format - workspace:// in CoPilot, data URI in graphs
+         return_format = "for_external_api" if input_data.base_64 else "for_block_output"
+ 
+-        yield "result", await store_media_file(
+-            file=input_data.value,
+-            execution_context=execution_context,
+-            return_format=return_format,
++        yield (
++            "result",
++            await store_media_file(
++                file=input_data.value,
++                execution_context=execution_context,
++                return_format=return_format,
++            ),
+         )
+ 
+ 
+diff --git a/autogpt_platform/backend/backend/blocks/llm.py b/autogpt_platform/backend/backend/blocks/llm.py
+index e5e30e11d..ae2b99152 100644
+--- a/autogpt_platform/backend/backend/blocks/llm.py
++++ b/autogpt_platform/backend/backend/blocks/llm.py
+@@ -144,6 +144,8 @@ class LlmModel(str, Enum, metaclass=LlmModelMeta):
+     O3_MINI = "o3-mini"
+     O3 = "o3-2025-04-16"
+     # GPT-5 models
++    GPT5_6_LUNA = "gpt-5.6-luna"
++    GPT5_2_LATEST = "gpt-5.2"
+     GPT5_2 = "gpt-5.2-2025-12-11"
+     GPT5_1 = "gpt-5.1-2025-11-13"
+     GPT5 = "gpt-5-2025-08-07"
+@@ -298,6 +300,12 @@ MODEL_METADATA = {
+         "openai", 200000, 100000, "O3 Mini", "OpenAI", "OpenAI", 1
+     ),  # o3-mini-2025-01-31
+     # GPT-5 models
++    LlmModel.GPT5_6_LUNA: ModelMetadata(
++        "openai", 1050000, 128000, "GPT-5.6 Luna", "OpenAI", "OpenAI", 2
++    ),
++    LlmModel.GPT5_2_LATEST: ModelMetadata(
++        "openai", 400000, 128000, "GPT-5.2 (latest)", "OpenAI", "OpenAI", 3
++    ),
+     LlmModel.GPT5_2: ModelMetadata(
+         "openai", 400000, 128000, "GPT-5.2", "OpenAI", "OpenAI", 3
+     ),
+diff --git a/autogpt_platform/backend/backend/blocks/test/test_block.py b/autogpt_platform/backend/backend/blocks/test/test_block.py
+index 719dd600d..56abf3d80 100644
+--- a/autogpt_platform/backend/backend/blocks/test/test_block.py
++++ b/autogpt_platform/backend/backend/blocks/test/test_block.py
+@@ -131,9 +131,9 @@ async def test_block_ids_valid(block: Type[Block]):
+     try:
+         parsed_uuid = uuid.UUID(block_instance.id)
+         # Verify it's specifically UUID version 4
+-        assert (
+-            parsed_uuid.version == 4
+-        ), f"Block {block.name} ID is UUID version {parsed_uuid.version}, expected version 4"
++        assert parsed_uuid.version == 4, (
++            f"Block {block.name} ID is UUID version {parsed_uuid.version}, expected version 4"
++        )
+     except ValueError:
+         pytest.fail(f"Block {block.name} has invalid UUID format: {block_instance.id}")
+ 
+@@ -294,9 +294,34 @@ def test_agent_input_block_ignores_legacy_placeholder_values():
+     }
+     instance = AgentInputBlock.Input.model_construct(**legacy_data)
+     schema = instance.generate_schema()
+-    assert (
+-        "enum" not in schema
+-    ), "AgentInputBlock should not produce enum from legacy placeholder_values"
++    assert "enum" not in schema, (
++        "AgentInputBlock should not produce enum from legacy placeholder_values"
++    )
++
++
++def test_agent_input_block_infers_nested_object_and_array_schema():
++    instance = AgentInputBlock.Input.model_construct(
++        name="config",
++        value={
++            "year": 2026,
++            "topics": [],
++            "paper_questions": ["What problem does this paper solve?"],
++        },
++    )
++
++    schema = instance.generate_schema()
++
++    assert schema["type"] == "object"
++    assert schema["additionalProperties"] is False
++    assert schema["properties"]["year"] == {"type": "integer"}
++    assert schema["properties"]["topics"] == {
++        "type": "array",
++        "items": {"type": "string"},
++    }
++    assert schema["properties"]["paper_questions"] == {
++        "type": "array",
++        "items": {"type": "string"},
++    }
+ 
+ 
+ def test_dropdown_input_block_produces_enum():
+@@ -318,9 +343,9 @@ def test_dropdown_input_block_legacy_placeholder_values_produces_enum():
+         name="choice", value=None, placeholder_values=opts
+     )
+     schema = instance.generate_schema()
+-    assert (
+-        schema.get("enum") == opts
+-    ), "Legacy placeholder_values should be remapped to options"
++    assert schema.get("enum") == opts, (
++        "Legacy placeholder_values should be remapped to options"
++    )
+ 
+ 
+ def test_generate_schema_integration_legacy_placeholder_values():
+@@ -336,9 +361,9 @@ def test_generate_schema_integration_legacy_placeholder_values():
+         (AgentInputBlock.Input, legacy_input_default),
+     )
+     url_props = result["properties"]["url"]
+-    assert (
+-        "enum" not in url_props
+-    ), "Graph schema should not contain enum from AgentInputBlock placeholder_values"
++    assert "enum" not in url_props, (
++        "Graph schema should not contain enum from AgentInputBlock placeholder_values"
++    )
+ 
+ 
+ def test_generate_schema_integration_dropdown_produces_enum():
+@@ -386,8 +411,8 @@ def test_dropdown_input_block_init_legacy_placeholder_values():
+     instance = AgentDropdownInputBlock.Input.model_validate(
+         {"name": "choice", "value": None, "placeholder_values": opts}
+     )
+-    assert (
+-        instance.options == opts
+-    ), "Legacy placeholder_values should be remapped to options via model_validate"
++    assert instance.options == opts, (
++        "Legacy placeholder_values should be remapped to options via model_validate"
++    )
+     schema = instance.generate_schema()
+     assert schema.get("enum") == opts
+diff --git a/autogpt_platform/backend/backend/data/block_cost_config.py b/autogpt_platform/backend/backend/data/block_cost_config.py
+index 0c4fed6a1..bc19ff8e0 100644
+--- a/autogpt_platform/backend/backend/data/block_cost_config.py
++++ b/autogpt_platform/backend/backend/data/block_cost_config.py
+@@ -111,6 +111,8 @@ MODEL_COST: dict[LlmModel, int] = {
+     LlmModel.O3: 4,
+     LlmModel.O3_MINI: 2,
+     # GPT-5 models
++    LlmModel.GPT5_6_LUNA: 3,
++    LlmModel.GPT5_2_LATEST: 6,
+     LlmModel.GPT5_2: 6,
+     LlmModel.GPT5_1: 5,
+     LlmModel.GPT5: 2,
+@@ -246,6 +248,8 @@ TOKEN_COST: dict[LlmModel, TokenRate] = {
+         input=150, output=750, cache_read=15, cache_creation=188
+     ),
+     # OpenAI
++    LlmModel.GPT5_6_LUNA: TokenRate(input=150, output=900),
++    LlmModel.GPT5_2_LATEST: TokenRate(input=263, output=2100),
+     LlmModel.GPT5_2: TokenRate(input=263, output=2100),
+     LlmModel.GPT5_1: TokenRate(input=188, output=1500),
+     LlmModel.GPT5: TokenRate(input=188, output=1500),
+diff --git a/autogpt_platform/backend/backend/executor/manager.py b/autogpt_platform/backend/backend/executor/manager.py
+index 14eb4108d..0ce41b970 100644
+--- a/autogpt_platform/backend/backend/executor/manager.py
++++ b/autogpt_platform/backend/backend/executor/manager.py
+@@ -483,7 +483,7 @@ async def _enqueue_next_nodes(
+ 
+             # Incomplete input data, skip queueing the execution.
+             if not next_node_input:
+-                log_metadata.info(f"Skipped queueing {suffix}")
++                log_metadata.warning(f"Skipped queueing {suffix}")
+                 return enqueued_executions
+ 
+             # Input is complete, enqueue the execution.
+@@ -528,7 +528,9 @@ async def _enqueue_next_nodes(
+                 )
+                 suffix = f"{next_output_name}>{next_input_name}~{ineid}:{msg}"
+                 if not idata:
+-                    log_metadata.info(f"Enqueueing static-link skipped: {suffix}")
++                    log_metadata.warning(
++                        f"Enqueueing static-link skipped: {suffix}"
++                    )
+                     continue
+                 log_metadata.info(f"Enqueueing static-link execution {suffix}")
+                 enqueued_executions.append(
+diff --git a/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks.py b/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks.py
+index 6a59b73b8..3cefbc731 100644
+--- a/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks.py
++++ b/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks.py
+@@ -73,6 +73,24 @@ async def _before_graph_activate(graph: "BaseGraph | GraphModel", user_id: str):
+             creds_meta = new_node.input_default.get(creds_field_name)
+             if not creds_meta:
+                 continue
++            creds_id = creds_meta.get("id") if isinstance(creds_meta, dict) else None
++            if not isinstance(creds_id, str) or not creds_id.strip():
++                creds_field_optional = (
++                    new_node.credentials_optional
++                    or creds_field_name not in block_input_schema.get_required_fields()
++                )
++                if creds_field_optional:
++                    new_node.input_default[creds_field_name] = {}
++                    logger.warning(
++                        f"Node #{new_node.id}: cleared incomplete optional "
++                        f"credentials for '{creds_field_name}'"
++                    )
++                    continue
++                raise GraphActivationError(
++                    f"The credentials configured for the "
++                    f"{new_node.block.name} node are incomplete. Please "
++                    "reconnect this integration and try again."
++                )
+             refs.append((new_node, creds_field_name, creds_meta, block_input_schema))
+ 
+     unique_ids = list({m["id"] for _, _, m, _ in refs})
+@@ -171,7 +189,7 @@ def _apply_credential_result(
+         else creds_meta.get("provider", "unknown")
+     )
+     credential_ref = (
+-        f"The {credential_label} credential used by the " f"{new_node.block.name} node"
++        f"The {credential_label} credential used by the {new_node.block.name} node"
+     )
+ 
+     if refresh_error:
+diff --git a/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks_test.py b/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks_test.py
+index dd289f1ef..3bef1a2a0 100644
+--- a/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks_test.py
++++ b/autogpt_platform/backend/backend/integrations/webhooks/graph_lifecycle_hooks_test.py
+@@ -1,6 +1,7 @@
+ from unittest.mock import AsyncMock, MagicMock, patch
+ 
+ import pytest
++import pytest_asyncio
+ 
+ from backend.integrations.webhooks.graph_lifecycle_hooks import (
+     GraphActivationError,
+@@ -8,6 +9,11 @@ from backend.integrations.webhooks.graph_lifecycle_hooks import (
+ )
+ 
+ 
++@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
++async def graph_cleanup():
++    yield
++
++
+ def _make_node(
+     *,
+     creds_field: str = "credentials",
+@@ -17,6 +23,7 @@ def _make_node(
+     block_name: str = "GithubCommentBlock",
+     required: bool = True,
+     optional_marker: bool = False,
++    creds_meta: dict | None = None,
+ ):
+     block_input_schema = MagicMock()
+     block_input_schema.get_credentials_fields.return_value = {creds_field: object()}
+@@ -27,8 +34,8 @@ def _make_node(
+     node = MagicMock()
+     node.id = "node-1"
+     node.credentials_optional = optional_marker
+-    cred = {"id": creds_id, "provider": creds_provider}
+-    if creds_title is not None:
++    cred = creds_meta or {"id": creds_id, "provider": creds_provider}
++    if creds_meta is None and creds_title is not None:
+         cred["title"] = creds_title
+     node.input_default = {creds_field: cred}
+     node.block.input_schema = block_input_schema
+@@ -120,3 +127,37 @@ async def test_before_graph_activate_succeeds_when_credentials_resolve():
+         await _before_graph_activate(graph, "user-1")
+ 
+     assert node.input_default["credentials"]["id"] == "cred-1"
++
++
++@pytest.mark.asyncio
++async def test_before_graph_activate_rejects_malformed_required_credentials():
++    node = _make_node(creds_meta={"provider": "mcp"})
++    graph = MagicMock(nodes=[node])
++
++    with patch(
++        "backend.integrations.webhooks.graph_lifecycle_hooks.credentials_manager"
++    ) as mgr:
++        with pytest.raises(GraphActivationError) as excinfo:
++            await _before_graph_activate(graph, "user-1")
++
++    assert "incomplete" in str(excinfo.value).lower()
++    assert "reconnect" in str(excinfo.value).lower()
++    mgr.cached_getter.return_value.assert_not_called()
++
++
++@pytest.mark.asyncio
++async def test_before_graph_activate_clears_malformed_optional_credentials():
++    node = _make_node(
++        required=False,
++        optional_marker=True,
++        creds_meta={"provider": "mcp"},
++    )
++    graph = MagicMock(nodes=[node])
++
++    with patch(
++        "backend.integrations.webhooks.graph_lifecycle_hooks.credentials_manager"
++    ) as mgr:
++        await _before_graph_activate(graph, "user-1")
++
++    assert node.input_default["credentials"] == {}
++    mgr.cached_getter.return_value.assert_not_called()
+diff --git a/autogpt_platform/docker-compose.yml b/autogpt_platform/docker-compose.yml
+index 3371d8b9d..fde9741ce 100644
+--- a/autogpt_platform/docker-compose.yml
++++ b/autogpt_platform/docker-compose.yml
+@@ -16,6 +16,9 @@ x-agpt-services:
+     - app-network
+     - shared-network
+ 
++x-openai-compatible-env: &openai-compatible-env
++  OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
++
+ x-supabase-services:
+   &supabase-services
+   networks:
+@@ -72,12 +75,18 @@ services:
+     extends:
+       file: ./docker-compose.platform.yml
+       service: rest_server
++    environment:
++      <<: *openai-compatible-env
+ 
+   executor:
+     <<: *agpt-services
+     extends:
+       file: ./docker-compose.platform.yml
+       service: executor
++    environment:
++      <<: *openai-compatible-env
++    volumes:
++      - ../projects/conference-paper-research-agent/data:/app/projects/conference-paper-research-agent/data
+ 
+   copilot_executor:
+     <<: *agpt-services
+diff --git a/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.test.ts b/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.test.ts
+new file mode 100644
+index 000000000..c1c645827
+--- /dev/null
++++ b/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.test.ts
+@@ -0,0 +1,18 @@
++import { describe, expect, it } from "vitest";
++import { GET } from "./route";
++
++describe("MCP OAuth callback page", () => {
++  it("exchanges the authorization code before publishing the credential", async () => {
++    const response = await GET(
++      new Request(
++        "http://localhost:3000/auth/integrations/mcp_callback?code=code-1&state=state-1",
++      ),
++    );
++    const html = await response.text();
++
++    expect(html).toContain('fetch("/api/proxy/api/mcp/oauth/callback"');
++    expect(html).toContain("state_token: msg.state");
++    expect(html).toContain("JSON.parse(responseText)");
++    expect(html).toContain("credential: credential");
++  });
++});
+diff --git a/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.ts b/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.ts
+index 8786a1b78..2825ced3e 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.ts
++++ b/autogpt_platform/frontend/src/app/(platform)/auth/integrations/mcp_callback/route.ts
+@@ -45,52 +45,100 @@ export async function GET(request: Request) {
+     <script>
+       (function() {
+         var msg = ${safeJsonStringify(message)};
+-        var sent = false;
++        var statusEl = document.getElementById("status");
++        var spinnerEl = document.getElementById("spinner");
+ 
+-        // Method 1: BroadcastChannel (reliable across tabs/popups, no opener needed)
+-        try {
+-          var bc = new BroadcastChannel("oauth_popup");
+-          bc.postMessage({ message_type: "mcp_oauth_result", success: msg.success, code: msg.code, state: msg.state, message: msg.message });
+-          bc.close();
+-          sent = true;
+-        } catch(e) { /* BroadcastChannel not supported */ }
++        function publish(result) {
++          var payload = {
++            message_type: "mcp_oauth_result",
++            success: result.success,
++            state: result.state,
++            credential: result.credential,
++            message: result.message
++          };
++          var sent = false;
+ 
+-        // Method 2: window.opener.postMessage (fallback for same-origin popups)
+-        try {
+-          if (window.opener && !window.opener.closed) {
+-            window.opener.postMessage(
+-              { message_type: "mcp_oauth_result", success: msg.success, code: msg.code, state: msg.state, message: msg.message },
+-              window.location.origin
+-            );
++          try {
++            var bc = new BroadcastChannel("oauth_popup");
++            bc.postMessage(payload);
++            bc.close();
+             sent = true;
+-          }
+-        } catch(e) { /* opener not available (COOP) */ }
++          } catch(e) {}
+ 
+-        // Method 3: localStorage (most reliable cross-tab fallback).
+-        // Key is scoped by state token so concurrent OAuth flows don't race
+-        // for a single shared slot (poller destructively reads its own key).
+-        try {
+-          if (msg.state) {
+-            localStorage.setItem("oauth_popup_result_" + msg.state, JSON.stringify({ message_type: "mcp_oauth_result", ...msg }));
+-            sent = true;
++          try {
++            if (window.opener && !window.opener.closed) {
++              window.opener.postMessage(payload, window.location.origin);
++              sent = true;
++            }
++          } catch(e) {}
++
++          try {
++            if (result.state) {
++              localStorage.setItem(
++                "oauth_popup_result_" + result.state,
++                JSON.stringify(payload)
++              );
++              sent = true;
++            }
++          } catch(e) {}
++
++          spinnerEl.style.display = "none";
++          if (result.success && sent) {
++            statusEl.textContent = "Sign-in complete! This window will close.";
++            statusEl.style.color = "#059669";
++            setTimeout(function() { window.close(); }, 1500);
++          } else if (result.success) {
++            statusEl.textContent = "Sign-in successful! You can close this tab and return to the builder.";
++            statusEl.style.color = "#059669";
++          } else {
++            statusEl.textContent = "Sign-in failed: " + (result.message || "Unknown error");
++            statusEl.style.color = "#dc2626";
+           }
+-        } catch(e) { /* localStorage not available */ }
++        }
+ 
+-        var statusEl = document.getElementById("status");
+-        var spinnerEl = document.getElementById("spinner");
+-        spinnerEl.style.display = "none";
++        async function completeSignIn() {
++          if (!msg.success) {
++            publish(msg);
++            return;
++          }
+ 
+-        if (msg.success && sent) {
+-          statusEl.textContent = "Sign-in complete! This window will close.";
+-          statusEl.style.color = "#059669";
+-          setTimeout(function() { window.close(); }, 1500);
+-        } else if (msg.success) {
+-          statusEl.textContent = "Sign-in successful! You can close this tab and return to the builder.";
+-          statusEl.style.color = "#059669";
+-        } else {
+-          statusEl.textContent = "Sign-in failed: " + (msg.message || "Unknown error");
+-          statusEl.style.color = "#dc2626";
++          try {
++            var response = await fetch("/api/proxy/api/mcp/oauth/callback", {
++              method: "POST",
++              credentials: "same-origin",
++              headers: { "Content-Type": "application/json" },
++              body: JSON.stringify({ code: msg.code, state_token: msg.state })
++            });
++            var responseText = await response.text();
++            var credential;
++            try {
++              credential = responseText ? JSON.parse(responseText) : {};
++            } catch (parseError) {
++              throw new Error(
++                "Credential exchange returned a non-JSON response (HTTP " +
++                  response.status + ")"
++              );
++            }
++            if (!response.ok) {
++              throw new Error(
++                credential.detail || credential.message || "Credential exchange failed"
++              );
++            }
++            publish({
++              success: true,
++              state: msg.state,
++              credential: credential
++            });
++          } catch (error) {
++            publish({
++              success: false,
++              state: msg.state,
++              message: error instanceof Error ? error.message : String(error)
++            });
++          }
+         }
++
++        completeSignIn();
+       })();
+     </script>
+   </body>
+diff --git a/autogpt_platform/frontend/src/app/(platform)/build/components/MCPToolDialog.tsx b/autogpt_platform/frontend/src/app/(platform)/build/components/MCPToolDialog.tsx
+index e01fb3a4b..796c71a84 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/build/components/MCPToolDialog.tsx
++++ b/autogpt_platform/frontend/src/app/(platform)/build/components/MCPToolDialog.tsx
+@@ -29,7 +29,11 @@ import {
+   postV2ExchangeOauthCodeForMcpTokens,
+ } from "@/app/api/__generated__/endpoints/mcp/mcp";
+ import { CaretDown } from "@phosphor-icons/react";
+-import { openOAuthPopup } from "@/lib/oauth-popup";
++import {
++  normalizeOAuthCredentialMeta,
++  openOAuthPopup,
++  resolveMcpOAuthResult,
++} from "@/lib/oauth-popup";
+ import { CredentialsProvidersContext } from "@/providers/agent-credentials/credentials-provider";
+ 
+ export type MCPToolDialogResult = {
+@@ -174,20 +178,24 @@ export function MCPToolDialog({
+       setOauthLoading(false);
+ 
+       const mcpProvider = allProviders?.["mcp"];
+-      let callbackResult;
+-      if (mcpProvider) {
+-        callbackResult = await mcpProvider.mcpOAuthCallback(
+-          result.code,
+-          state_token,
+-        );
+-      } else {
+-        const cbResponse = await postV2ExchangeOauthCodeForMcpTokens({
+-          code: result.code,
+-          state_token,
+-        });
+-        if (cbResponse.status !== 200) throw cbResponse.data;
+-        callbackResult = cbResponse.data;
+-      }
++      const callbackResult = await resolveMcpOAuthResult(
++        result,
++        mcpProvider
++          ? mcpProvider.mcpOAuthCallback
++          : async (code, stateToken) => {
++              const cbResponse = await postV2ExchangeOauthCodeForMcpTokens({
++                code,
++                state_token: stateToken,
++              });
++              if (cbResponse.status !== 200) throw cbResponse.data;
++              const credential = normalizeOAuthCredentialMeta(cbResponse.data);
++              if (!credential) {
++                throw new Error("MCP OAuth returned invalid credentials");
++              }
++              return credential;
++            },
++        mcpProvider?.mcpOAuthComplete,
++      );
+ 
+       setCredentials({
+         id: callbackResult.id,
+diff --git a/autogpt_platform/frontend/src/app/(platform)/copilot/styleguide/page.tsx b/autogpt_platform/frontend/src/app/(platform)/copilot/styleguide/page.tsx
+index 295f3a760..a0f723c10 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/copilot/styleguide/page.tsx
++++ b/autogpt_platform/frontend/src/app/(platform)/copilot/styleguide/page.tsx
+@@ -123,6 +123,7 @@ function makeMockProvider(
+     isSystemProvider: false,
+     oAuthCallback: noop as CredentialsProviderData["oAuthCallback"],
+     mcpOAuthCallback: noop as CredentialsProviderData["mcpOAuthCallback"],
++    mcpOAuthComplete: noop as CredentialsProviderData["mcpOAuthComplete"],
+     createAPIKeyCredentials:
+       noop as CredentialsProviderData["createAPIKeyCredentials"],
+     createUserPasswordCredentials:
+diff --git a/autogpt_platform/frontend/src/app/(platform)/copilot/tools/RunMCPTool/components/MCPSetupCard/MCPSetupCard.tsx b/autogpt_platform/frontend/src/app/(platform)/copilot/tools/RunMCPTool/components/MCPSetupCard/MCPSetupCard.tsx
+index 888eb7de5..7e880bf0f 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/copilot/tools/RunMCPTool/components/MCPSetupCard/MCPSetupCard.tsx
++++ b/autogpt_platform/frontend/src/app/(platform)/copilot/tools/RunMCPTool/components/MCPSetupCard/MCPSetupCard.tsx
+@@ -8,7 +8,11 @@ import {
+ } from "@/app/api/__generated__/endpoints/mcp/mcp";
+ import type { SetupRequirementsResponse } from "@/app/api/__generated__/models/setupRequirementsResponse";
+ import { Button } from "@/components/atoms/Button/Button";
+-import { openOAuthPopup } from "@/lib/oauth-popup";
++import {
++  normalizeOAuthCredentialMeta,
++  openOAuthPopup,
++  resolveMcpOAuthResult,
++} from "@/lib/oauth-popup";
+ import { CredentialsProvidersContext } from "@/providers/agent-credentials/credentials-provider";
+ import { useContext, useEffect, useRef, useState } from "react";
+ import { useCopilotChatActions } from "../../../../components/CopilotChatActionsProvider/useCopilotChatActions";
+@@ -171,19 +175,30 @@ export function MCPSetupCard({ output, retryInstruction }: Props) {
+       const result = await promise;
+ 
+       const mcpProvider = allProviders?.["mcp"];
+-      if (mcpProvider) {
+-        await mcpProvider.mcpOAuthCallback(result.code, state_token);
+-      } else {
+-        const cbRes = await postV2ExchangeOauthCodeForMcpTokens({
+-          code: result.code,
+-          state_token,
+-        });
+-        if (!(cbRes.status >= 200 && cbRes.status < 300)) {
+-          const d =
+-            cbRes.data && typeof cbRes.data === "object" ? cbRes.data : {};
+-          throw { status: cbRes.status, ...d };
+-        }
+-      }
++      await resolveMcpOAuthResult(
++        result,
++        mcpProvider
++          ? mcpProvider.mcpOAuthCallback
++          : async (code, stateToken) => {
++              const cbRes = await postV2ExchangeOauthCodeForMcpTokens({
++                code,
++                state_token: stateToken,
++              });
++              if (!(cbRes.status >= 200 && cbRes.status < 300)) {
++                const d =
++                  cbRes.data && typeof cbRes.data === "object"
++                    ? cbRes.data
++                    : {};
++                throw { status: cbRes.status, ...d };
++              }
++              const credential = normalizeOAuthCredentialMeta(cbRes.data);
++              if (!credential) {
++                throw new Error("MCP OAuth returned invalid credentials");
++              }
++              return credential;
++            },
++        mcpProvider?.mcpOAuthComplete,
++      );
+ 
+       // Only clear the force-disconnect override AFTER the OAuth dance
+       // completes successfully.  Clearing it earlier would let
+diff --git a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/McpConnectPanel.tsx b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/McpConnectPanel.tsx
+index 1bfc30e86..1e0a7a6bd 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/McpConnectPanel.tsx
++++ b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/McpConnectPanel.tsx
+@@ -13,7 +13,11 @@ import type { MCPOAuthLoginResponse } from "@/app/api/__generated__/models/mCPOA
+ import { Button } from "@/components/atoms/Button/Button";
+ import { Input } from "@/components/atoms/Input/Input";
+ import { Text } from "@/components/atoms/Text/Text";
+-import { openOAuthPopup } from "@/lib/oauth-popup";
++import {
++  normalizeOAuthCredentialMeta,
++  openOAuthPopup,
++  resolveMcpOAuthResult,
++} from "@/lib/oauth-popup";
+ 
+ interface Props {
+   onSuccess: () => void;
+@@ -83,9 +87,17 @@ export function McpConnectPanel({ onSuccess }: Props) {
+ 
+       const result = await promise;
+ 
+-      await postV2ExchangeOauthCodeForMcpTokens({
+-        code: result.code,
+-        state_token,
++      await resolveMcpOAuthResult(result, async (code, stateToken) => {
++        const callbackResponse = await postV2ExchangeOauthCodeForMcpTokens({
++          code,
++          state_token: stateToken,
++        });
++        if (callbackResponse.status !== 200) throw callbackResponse.data;
++        const credential = normalizeOAuthCredentialMeta(callbackResponse.data);
++        if (!credential) {
++          throw new Error("MCP OAuth returned invalid credentials");
++        }
++        return credential;
+       });
+ 
+       await invalidateCredentials();
+diff --git a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/__tests__/McpConnectPanel.test.tsx b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/__tests__/McpConnectPanel.test.tsx
+index 0acd7a2f7..1dfcb3378 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/__tests__/McpConnectPanel.test.tsx
++++ b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/__tests__/McpConnectPanel.test.tsx
+@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
+ 
+ import { McpConnectPanel } from "../McpConnectPanel";
+ 
+-vi.mock("@/lib/oauth-popup", () => ({
++vi.mock("@/lib/oauth-popup", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@/lib/oauth-popup")>()),
+   openOAuthPopup: vi.fn(),
+ }));
+ 
+diff --git a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/useOAuthConnect.ts b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/useOAuthConnect.ts
+index 6bf1c5f61..94ff2bde6 100644
+--- a/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/useOAuthConnect.ts
++++ b/autogpt_platform/frontend/src/app/(platform)/settings/integrations/components/ConnectServiceDialog/components/DetailView/useOAuthConnect.ts
+@@ -49,12 +49,15 @@ export function useOAuthConnect({ provider, onSuccess }: Args) {
+       });
+       abortRef.current = () => cleanup.abort("unmounted");
+ 
+-      const { code, state } = await promise;
++      const result = await promise;
+       abortRef.current = null;
++      if (!result.code) {
++        throw new Error("OAuth callback returned no authorization code");
++      }
+ 
+       await postV1ExchangeOauthCodeForTokens(provider, {
+-        code,
+-        state_token: state,
++        code: result.code,
++        state_token: result.state,
+       });
+ 
+       toast({ title: "Connected via OAuth", variant: "success" });
+diff --git a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/__tests__/CredentialsInput.test.tsx b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/__tests__/CredentialsInput.test.tsx
+index 0902954b3..6c773b3bb 100644
+--- a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/__tests__/CredentialsInput.test.tsx
++++ b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/__tests__/CredentialsInput.test.tsx
+@@ -8,6 +8,11 @@ import {
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import type { BlockIOCredentialsSubSchema } from "@/lib/autogpt-server-api";
+ import { CredentialsInput } from "../CredentialsInput";
++import {
++  MCP_OAUTH_PENDING_STORAGE_KEY,
++  MCP_OAUTH_PENDING_TTL_MS,
++  callbackStorageKey,
++} from "../mcp-oauth-recovery";
+ 
+ vi.mock("@/hooks/useCredentials", () => ({ default: vi.fn() }));
+ vi.mock("@/lib/autogpt-server-api/context", () => ({
+@@ -18,11 +23,9 @@ vi.mock("@/components/molecules/Toast/use-toast", () => ({
+   toast: vi.fn(),
+   useToast: () => ({ toast: vi.fn(), dismiss: vi.fn(), toasts: [] }),
+ }));
+-vi.mock("@/lib/oauth-popup", () => ({
++vi.mock("@/lib/oauth-popup", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@/lib/oauth-popup")>()),
+   openOAuthPopup: vi.fn(),
+-  OAUTH_ERROR_WINDOW_CLOSED: "Sign-in window was closed",
+-  OAUTH_ERROR_FLOW_CANCELED: "OAuth flow was canceled",
+-  OAUTH_ERROR_FLOW_TIMED_OUT: "OAuth flow timed out",
+ }));
+ vi.mock("@/app/api/__generated__/endpoints/mcp/mcp", () => ({
+   postV2InitiateOauthLoginForAnMcpServer: vi.fn(),
+@@ -31,6 +34,7 @@ vi.mock("@/app/api/__generated__/endpoints/mcp/mcp", () => ({
+ import useCredentials from "@/hooks/useCredentials";
+ import { useBackendAPI } from "@/lib/autogpt-server-api/context";
+ import { openOAuthPopup } from "@/lib/oauth-popup";
++import { postV2InitiateOauthLoginForAnMcpServer } from "@/app/api/__generated__/endpoints/mcp/mcp";
+ 
+ const mockUseCredentials = useCredentials as unknown as ReturnType<
+   typeof vi.fn
+@@ -39,6 +43,8 @@ const mockUseBackendAPI = useBackendAPI as unknown as ReturnType<typeof vi.fn>;
+ const mockOpenOAuthPopup = openOAuthPopup as unknown as ReturnType<
+   typeof vi.fn
+ >;
++const mockInitiateMcpOAuth =
++  postV2InitiateOauthLoginForAnMcpServer as unknown as ReturnType<typeof vi.fn>;
+ 
+ const baseSchema: BlockIOCredentialsSubSchema = {
+   credentials_provider: ["google"],
+@@ -46,6 +52,14 @@ const baseSchema: BlockIOCredentialsSubSchema = {
+   credentials_scopes: ["drive.file", "drive.metadata"],
+ } as BlockIOCredentialsSubSchema;
+ 
++const mcpSchema: BlockIOCredentialsSubSchema = {
++  credentials_provider: ["mcp"],
++  credentials_types: ["oauth2"],
++  discriminator: "server_url",
++} as BlockIOCredentialsSubSchema;
++
++const mcpServerUrl = "https://api.alphaxiv.org/mcp";
++
+ type CredentialsReturn = ReturnType<typeof useCredentials>;
+ type BackendAPI = ReturnType<typeof useBackendAPI>;
+ 
+@@ -70,6 +84,7 @@ function makeCredentialsReturn(overrides: Partial<CredentialsReturn> = {}) {
+       scopes: ["drive.file", "drive.metadata"],
+     }),
+     mcpOAuthCallback: vi.fn(),
++    mcpOAuthComplete: vi.fn(async (credential) => credential),
+     createAPIKeyCredentials: vi.fn(),
+     createUserPasswordCredentials: vi.fn(),
+     createHostScopedCredentials: vi.fn(),
+@@ -94,6 +109,8 @@ function makeBackendAPI(overrides: Partial<BackendAPI> = {}) {
+ 
+ beforeEach(() => {
+   vi.clearAllMocks();
++  localStorage.clear();
++  sessionStorage.clear();
+   mockUseBackendAPI.mockReturnValue(makeBackendAPI());
+ });
+ 
+@@ -139,4 +156,305 @@ describe("CredentialsInput – OAuth flow", () => {
+       );
+     });
+   });
++
++  it("recovers a completed MCP OAuth callback after remount", async () => {
++    const onSelectCredentials = vi.fn();
++    const mcpOAuthCallback = vi.fn().mockResolvedValue({
++      id: "mcp-credential-id",
++      type: "oauth2",
++      title: "alphaXiv",
++      provider: "mcp",
++      scopes: [],
++    });
++    mockUseCredentials.mockReturnValue(
++      makeCredentialsReturn({
++        provider: "mcp",
++        providerName: "MCP",
++        schema: mcpSchema,
++        discriminatorValue: mcpServerUrl,
++        mcpOAuthCallback,
++      }),
++    );
++    sessionStorage.setItem(
++      MCP_OAUTH_PENDING_STORAGE_KEY,
++      JSON.stringify({
++        stateToken: "mcp-state",
++        serverUrl: mcpServerUrl,
++        createdAt: Date.now(),
++      }),
++    );
++    localStorage.setItem(
++      callbackStorageKey("mcp-state"),
++      JSON.stringify({
++        message_type: "mcp_oauth_result",
++        success: true,
++        code: "mcp-code",
++        state: "mcp-state",
++      }),
++    );
++
++    const { rerender } = render(
++      <CredentialsInput
++        schema={mcpSchema}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={onSelectCredentials}
++        showTitle={false}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(mcpOAuthCallback).toHaveBeenCalledOnce();
++      expect(mcpOAuthCallback).toHaveBeenCalledWith("mcp-code", "mcp-state");
++      expect(onSelectCredentials).toHaveBeenCalledWith({
++        id: "mcp-credential-id",
++        type: "oauth2",
++        title: "alphaXiv",
++        provider: "mcp",
++      });
++    });
++
++    rerender(
++      <CredentialsInput
++        schema={mcpSchema}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={onSelectCredentials}
++        showTitle={false}
++      />,
++    );
++    expect(mcpOAuthCallback).toHaveBeenCalledOnce();
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("clears an incomplete MCP credential when recovery has expired", async () => {
++    const onSelectCredentials = vi.fn();
++    mockUseCredentials.mockReturnValue(
++      makeCredentialsReturn({
++        provider: "mcp",
++        providerName: "MCP",
++        schema: mcpSchema,
++        discriminatorValue: mcpServerUrl,
++      }),
++    );
++    sessionStorage.setItem(
++      MCP_OAUTH_PENDING_STORAGE_KEY,
++      JSON.stringify({
++        stateToken: "expired-state",
++        serverUrl: mcpServerUrl,
++        createdAt: Date.now() - MCP_OAUTH_PENDING_TTL_MS - 1,
++      }),
++    );
++
++    render(
++      <CredentialsInput
++        schema={mcpSchema}
++        selectedCredentials={{
++          id: "",
++          type: "oauth2",
++          provider: "mcp",
++        }}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={onSelectCredentials}
++        showTitle={false}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(onSelectCredentials).toHaveBeenCalledWith(undefined);
++    });
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("persists and clears pending state during a normal MCP OAuth flow", async () => {
++    const onSelectCredentials = vi.fn();
++    const mcpOAuthCallback = vi.fn().mockResolvedValue({
++      id: "mcp-credential-id",
++      type: "oauth2",
++      title: "alphaXiv",
++      provider: "mcp",
++      scopes: [],
++    });
++    mockUseCredentials.mockReturnValue(
++      makeCredentialsReturn({
++        provider: "mcp",
++        providerName: "MCP",
++        schema: mcpSchema,
++        discriminatorValue: mcpServerUrl,
++        mcpOAuthCallback,
++      }),
++    );
++    mockInitiateMcpOAuth.mockResolvedValue({
++      status: 200,
++      data: {
++        login_url: "https://api.alphaxiv.org/oauth/authorize",
++        state_token: "mcp-state",
++      },
++    });
++    let resolvePopup: (result: { code: string; state: string }) => void;
++    const popupPromise = new Promise<{ code: string; state: string }>(
++      (resolve) => {
++        resolvePopup = resolve;
++      },
++    );
++    mockOpenOAuthPopup.mockReturnValue({
++      promise: popupPromise,
++      cleanup: { abort: vi.fn() },
++      popupBlocked: false,
++    });
++
++    render(
++      <CredentialsInput
++        schema={mcpSchema}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={onSelectCredentials}
++        showTitle={false}
++      />,
++    );
++    fireEvent.click(
++      await screen.findByRole("button", { name: /add account/i }),
++    );
++
++    await waitFor(() => {
++      expect(mockOpenOAuthPopup).toHaveBeenCalledOnce();
++    });
++    expect(
++      JSON.parse(
++        sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY) ?? "null",
++      ),
++    ).toEqual({
++      stateToken: "mcp-state",
++      serverUrl: mcpServerUrl,
++      createdAt: expect.any(Number),
++    });
++
++    resolvePopup!({ code: "mcp-code", state: "mcp-state" });
++    await waitFor(() => {
++      expect(mcpOAuthCallback).toHaveBeenCalledWith("mcp-code", "mcp-state");
++      expect(onSelectCredentials).toHaveBeenCalledWith({
++        id: "mcp-credential-id",
++        type: "oauth2",
++        title: "alphaXiv",
++        provider: "mcp",
++      });
++    });
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("selects a credential exchanged by the MCP callback page without exchanging twice", async () => {
++    const onSelectCredentials = vi.fn();
++    const mcpOAuthCallback = vi.fn();
++    const mcpOAuthComplete = vi.fn(
++      async (completedCredential) => completedCredential,
++    );
++    const credential = {
++      id: "mcp-credential-id",
++      type: "oauth2" as const,
++      title: "alphaXiv",
++      provider: "mcp",
++      scopes: [],
++      username: null,
++      host: mcpServerUrl,
++    };
++    mockUseCredentials.mockReturnValue(
++      makeCredentialsReturn({
++        provider: "mcp",
++        providerName: "MCP",
++        schema: mcpSchema,
++        discriminatorValue: mcpServerUrl,
++        mcpOAuthCallback,
++        mcpOAuthComplete,
++      }),
++    );
++    mockInitiateMcpOAuth.mockResolvedValue({
++      status: 200,
++      data: {
++        login_url: "https://api.alphaxiv.org/oauth/authorize",
++        state_token: "mcp-state",
++      },
++    });
++    mockOpenOAuthPopup.mockReturnValue({
++      promise: Promise.resolve({ state: "mcp-state", credential }),
++      cleanup: { abort: vi.fn() },
++      popupBlocked: false,
++    });
++
++    render(
++      <CredentialsInput
++        schema={mcpSchema}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={onSelectCredentials}
++        showTitle={false}
++      />,
++    );
++    fireEvent.click(
++      await screen.findByRole("button", { name: /add account/i }),
++    );
++
++    await waitFor(() => {
++      expect(onSelectCredentials).toHaveBeenCalledWith({
++        id: "mcp-credential-id",
++        type: "oauth2",
++        title: "alphaXiv",
++        provider: "mcp",
++      });
++    });
++    expect(mcpOAuthCallback).not.toHaveBeenCalled();
++    expect(mcpOAuthComplete).toHaveBeenCalledWith(credential);
++  });
++
++  it("keeps pending MCP state when the component unmounts", async () => {
++    mockUseCredentials.mockReturnValue(
++      makeCredentialsReturn({
++        provider: "mcp",
++        providerName: "MCP",
++        schema: mcpSchema,
++        discriminatorValue: mcpServerUrl,
++      }),
++    );
++    mockInitiateMcpOAuth.mockResolvedValue({
++      status: 200,
++      data: {
++        login_url: "https://api.alphaxiv.org/oauth/authorize",
++        state_token: "refresh-state",
++      },
++    });
++    let rejectPopup: (error: Error) => void;
++    const popupPromise = new Promise<{ code: string; state: string }>(
++      (_resolve, reject) => {
++        rejectPopup = reject;
++      },
++    );
++    mockOpenOAuthPopup.mockReturnValue({
++      promise: popupPromise,
++      cleanup: {
++        abort: vi.fn(() => rejectPopup!(new Error("OAuth flow was canceled"))),
++      },
++      popupBlocked: false,
++    });
++
++    const { unmount } = render(
++      <CredentialsInput
++        schema={mcpSchema}
++        siblingInputs={{ server_url: mcpServerUrl }}
++        onSelectCredentials={vi.fn()}
++        showTitle={false}
++      />,
++    );
++    fireEvent.click(
++      await screen.findByRole("button", { name: /add account/i }),
++    );
++    await waitFor(() => {
++      expect(
++        sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY),
++      ).not.toBeNull();
++    });
++
++    unmount();
++    await popupPromise.catch(() => undefined);
++
++    expect(
++      JSON.parse(
++        sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY) ?? "null",
++      ),
++    ).toMatchObject({ stateToken: "refresh-state", serverUrl: mcpServerUrl });
++  });
+ });
+diff --git a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.test.ts b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.test.ts
+new file mode 100644
+index 000000000..423f672dc
+--- /dev/null
++++ b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.test.ts
+@@ -0,0 +1,170 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import {
++  MCP_OAUTH_PENDING_STORAGE_KEY,
++  MCP_OAUTH_PENDING_TTL_MS,
++  callbackStorageKey,
++  clearPendingMcpOAuthFlow,
++  consumeMcpOAuthCallback,
++  readPendingMcpOAuthFlow,
++  savePendingMcpOAuthFlow,
++  waitForMcpOAuthCallback,
++} from "./mcp-oauth-recovery";
++
++const serverUrl = "https://api.alphaxiv.org/mcp";
++
++describe("MCP OAuth recovery storage", () => {
++  beforeEach(() => {
++    localStorage.clear();
++    sessionStorage.clear();
++  });
++
++  afterEach(() => {
++    vi.useRealTimers();
++  });
++
++  it("returns a matching unexpired pending flow", () => {
++    savePendingMcpOAuthFlow({
++      stateToken: "state-1",
++      serverUrl,
++      createdAt: 1_000,
++    });
++
++    expect(readPendingMcpOAuthFlow(serverUrl, 2_000)).toEqual({
++      stateToken: "state-1",
++      serverUrl,
++      createdAt: 1_000,
++    });
++  });
++
++  it("clears an expired pending flow", () => {
++    savePendingMcpOAuthFlow({
++      stateToken: "state-1",
++      serverUrl,
++      createdAt: 1_000,
++    });
++
++    expect(
++      readPendingMcpOAuthFlow(serverUrl, 1_000 + MCP_OAUTH_PENDING_TTL_MS + 1),
++    ).toBeNull();
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("clears a pending flow for a different server", () => {
++    savePendingMcpOAuthFlow({
++      stateToken: "state-1",
++      serverUrl,
++      createdAt: 1_000,
++    });
++
++    expect(
++      readPendingMcpOAuthFlow("https://other.example/mcp", 2_000),
++    ).toBeNull();
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("only clears the expected pending state", () => {
++    savePendingMcpOAuthFlow({
++      stateToken: "state-1",
++      serverUrl,
++      createdAt: 1_000,
++    });
++
++    clearPendingMcpOAuthFlow("state-2");
++    expect(readPendingMcpOAuthFlow(serverUrl, 2_000)).not.toBeNull();
++
++    clearPendingMcpOAuthFlow("state-1");
++    expect(sessionStorage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY)).toBeNull();
++  });
++
++  it("consumes a matching callback once", () => {
++    localStorage.setItem(
++      callbackStorageKey("state-1"),
++      JSON.stringify({
++        message_type: "mcp_oauth_result",
++        success: true,
++        code: "code-1",
++        state: "state-1",
++      }),
++    );
++
++    expect(consumeMcpOAuthCallback("state-1")).toEqual({
++      code: "code-1",
++      state: "state-1",
++    });
++    expect(consumeMcpOAuthCallback("state-1")).toBeNull();
++  });
++
++  it("consumes a callback containing an already stored credential", () => {
++    const credential = {
++      id: "credential-1",
++      provider: "mcp",
++      type: "oauth2",
++      title: "alphaXiv",
++      scopes: [],
++      username: null,
++      host: serverUrl,
++    };
++    localStorage.setItem(
++      callbackStorageKey("state-1"),
++      JSON.stringify({
++        message_type: "mcp_oauth_result",
++        success: true,
++        credential,
++        state: "state-1",
++      }),
++    );
++
++    expect(consumeMcpOAuthCallback("state-1")).toEqual({
++      credential: {
++        id: "credential-1",
++        provider: "mcp",
++        type: "oauth2",
++        title: "alphaXiv",
++        scopes: [],
++        host: serverUrl,
++      },
++      state: "state-1",
++    });
++  });
++
++  it("discards a malformed callback", () => {
++    localStorage.setItem(
++      callbackStorageKey("state-1"),
++      JSON.stringify({
++        message_type: "oauth_popup_result",
++        success: true,
++        code: "code-1",
++        state: "state-1",
++      }),
++    );
++
++    expect(consumeMcpOAuthCallback("state-1")).toBeNull();
++    expect(localStorage.getItem(callbackStorageKey("state-1"))).toBeNull();
++  });
++
++  it("waits until a callback is available", async () => {
++    vi.useFakeTimers();
++    const controller = new AbortController();
++    const resultPromise = waitForMcpOAuthCallback({
++      stateToken: "state-1",
++      signal: controller.signal,
++      timeoutMs: 2_000,
++    });
++
++    localStorage.setItem(
++      callbackStorageKey("state-1"),
++      JSON.stringify({
++        message_type: "mcp_oauth_result",
++        success: true,
++        code: "code-1",
++        state: "state-1",
++      }),
++    );
++    await vi.advanceTimersByTimeAsync(500);
++
++    await expect(resultPromise).resolves.toEqual({
++      code: "code-1",
++      state: "state-1",
++    });
++  });
++});
+diff --git a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.ts b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.ts
+new file mode 100644
+index 000000000..feb8cd0e5
+--- /dev/null
++++ b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/mcp-oauth-recovery.ts
+@@ -0,0 +1,209 @@
++import {
++  OAUTH_ERROR_FLOW_CANCELED,
++  OAUTH_ERROR_FLOW_TIMED_OUT,
++  OAuthPopupResult,
++  normalizeOAuthCredentialMeta,
++} from "@/lib/oauth-popup";
++
++export const MCP_OAUTH_PENDING_STORAGE_KEY = "mcp_oauth_pending_flow";
++export const MCP_OAUTH_PENDING_TTL_MS = 5 * 60 * 1000;
++export const MCP_OAUTH_POLL_INTERVAL_MS = 500;
++
++export interface PendingMcpOAuthFlow {
++  stateToken: string;
++  serverUrl: string;
++  createdAt: number;
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === "object" && value !== null;
++}
++
++function parsePendingFlow(value: string): PendingMcpOAuthFlow | null {
++  try {
++    const parsed: unknown = JSON.parse(value);
++    if (
++      !isRecord(parsed) ||
++      typeof parsed.stateToken !== "string" ||
++      typeof parsed.serverUrl !== "string" ||
++      typeof parsed.createdAt !== "number" ||
++      !Number.isFinite(parsed.createdAt)
++    ) {
++      return null;
++    }
++    return {
++      stateToken: parsed.stateToken,
++      serverUrl: parsed.serverUrl,
++      createdAt: parsed.createdAt,
++    };
++  } catch {
++    return null;
++  }
++}
++
++function getSessionStorage(): Storage | null {
++  try {
++    return typeof window === "undefined" ? null : window.sessionStorage;
++  } catch {
++    return null;
++  }
++}
++
++function getLocalStorage(): Storage | null {
++  try {
++    return typeof window === "undefined" ? null : window.localStorage;
++  } catch {
++    return null;
++  }
++}
++
++export function callbackStorageKey(stateToken: string): string {
++  return `oauth_popup_result_${stateToken}`;
++}
++
++export function savePendingMcpOAuthFlow(flow: PendingMcpOAuthFlow): void {
++  try {
++    getSessionStorage()?.setItem(
++      MCP_OAUTH_PENDING_STORAGE_KEY,
++      JSON.stringify(flow),
++    );
++  } catch {}
++}
++
++export function clearPendingMcpOAuthFlow(stateToken?: string): void {
++  const storage = getSessionStorage();
++  if (!storage) return;
++
++  try {
++    if (stateToken) {
++      const stored = storage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY);
++      if (!stored) return;
++      const pending = parsePendingFlow(stored);
++      if (pending && pending.stateToken !== stateToken) return;
++    }
++    storage.removeItem(MCP_OAUTH_PENDING_STORAGE_KEY);
++  } catch {}
++}
++
++export function readPendingMcpOAuthFlow(
++  serverUrl: string,
++  now: number = Date.now(),
++): PendingMcpOAuthFlow | null {
++  const storage = getSessionStorage();
++  if (!storage) return null;
++
++  try {
++    const stored = storage.getItem(MCP_OAUTH_PENDING_STORAGE_KEY);
++    if (!stored) return null;
++    const pending = parsePendingFlow(stored);
++    if (
++      !pending ||
++      pending.serverUrl !== serverUrl ||
++      now - pending.createdAt > MCP_OAUTH_PENDING_TTL_MS
++    ) {
++      storage.removeItem(MCP_OAUTH_PENDING_STORAGE_KEY);
++      return null;
++    }
++    return pending;
++  } catch {
++    return null;
++  }
++}
++
++export function consumeMcpOAuthCallback(
++  stateToken: string,
++): OAuthPopupResult | null {
++  const storage = getLocalStorage();
++  if (!storage) return null;
++  const key = callbackStorageKey(stateToken);
++
++  try {
++    const stored = storage.getItem(key);
++    if (!stored) return null;
++    storage.removeItem(key);
++
++    const parsed: unknown = JSON.parse(stored);
++    if (
++      !isRecord(parsed) ||
++      parsed.message_type !== "mcp_oauth_result" ||
++      parsed.success !== true ||
++      parsed.state !== stateToken
++    ) {
++      return null;
++    }
++    const credential = normalizeOAuthCredentialMeta(parsed.credential);
++    if (credential) {
++      return { credential, state: stateToken };
++    }
++    if (typeof parsed.code === "string" && parsed.code.length > 0) {
++      return { code: parsed.code, state: stateToken };
++    }
++    return null;
++  } catch {
++    try {
++      storage.removeItem(key);
++    } catch {}
++    return null;
++  }
++}
++
++interface WaitForMcpOAuthCallbackArgs {
++  stateToken: string;
++  signal: AbortSignal;
++  timeoutMs?: number;
++}
++
++export function waitForMcpOAuthCallback({
++  stateToken,
++  signal,
++  timeoutMs = MCP_OAUTH_PENDING_TTL_MS,
++}: WaitForMcpOAuthCallbackArgs): Promise<OAuthPopupResult> {
++  const immediateResult = consumeMcpOAuthCallback(stateToken);
++  if (immediateResult) return Promise.resolve(immediateResult);
++  if (signal.aborted) {
++    return Promise.reject(new Error(OAUTH_ERROR_FLOW_CANCELED));
++  }
++
++  return new Promise((resolve, reject) => {
++    let completed = false;
++
++    function cleanup() {
++      clearInterval(pollInterval);
++      clearTimeout(timeoutId);
++      signal.removeEventListener("abort", handleAbort);
++    }
++
++    function finish(result: OAuthPopupResult) {
++      if (completed) return;
++      completed = true;
++      cleanup();
++      resolve(result);
++    }
++
++    function fail(message: string) {
++      if (completed) return;
++      completed = true;
++      cleanup();
++      reject(new Error(message));
++    }
++
++    function checkForResult() {
++      const result = consumeMcpOAuthCallback(stateToken);
++      if (result) finish(result);
++    }
++
++    function handleAbort() {
++      fail(OAUTH_ERROR_FLOW_CANCELED);
++    }
++
++    const pollInterval = setInterval(
++      checkForResult,
++      MCP_OAUTH_POLL_INTERVAL_MS,
++    );
++    const timeoutId = setTimeout(
++      () => fail(OAUTH_ERROR_FLOW_TIMED_OUT),
++      Math.max(0, timeoutMs),
++    );
++    signal.addEventListener("abort", handleAbort, { once: true });
++  });
++}
+diff --git a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useCredentialsInput.ts b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useCredentialsInput.ts
+index a2fc8aaa3..4dadc4a83 100644
+--- a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useCredentialsInput.ts
++++ b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useCredentialsInput.ts
+@@ -12,6 +12,7 @@ import {
+   OAUTH_ERROR_POPUP_BLOCKED,
+   OAUTH_ERROR_WINDOW_CLOSED,
+   openOAuthPopup,
++  resolveMcpOAuthResult,
+ } from "@/lib/oauth-popup";
+ import { useEffect, useRef, useState } from "react";
+ import {
+@@ -23,6 +24,11 @@ import {
+   processCredentialDeletion,
+   resolveActionTarget,
+ } from "./helpers";
++import { useMcpOAuthRecovery } from "./useMcpOAuthRecovery";
++import {
++  clearPendingMcpOAuthFlow,
++  savePendingMcpOAuthFlow,
++} from "./mcp-oauth-recovery";
+ 
+ export type CredentialsInputState = ReturnType<typeof useCredentialsInput>;
+ 
+@@ -70,12 +76,30 @@ export function useCredentialsInput({
+   const credentials = useCredentials(schema, siblingInputs);
+   const hasAttemptedAutoSelect = useRef(false);
+   const oauthAbortRef = useRef<((reason?: string) => void) | null>(null);
++  const isUnmountingRef = useRef(false);
+   const [isDeletingCredential, setIsDeletingCredential] = useState(false);
++  const loadedCredentials =
++    credentials &&
++    credentials.isLoading === false &&
++    "savedCredentials" in credentials
++      ? credentials
++      : null;
++
++  useMcpOAuthRecovery({
++    enabled: !readOnly && loadedCredentials?.provider === "mcp",
++    serverUrl: loadedCredentials?.discriminatorValue,
++    selectedCredential,
++    mcpOAuthCallback: loadedCredentials?.mcpOAuthCallback,
++    mcpOAuthComplete: loadedCredentials?.mcpOAuthComplete,
++    onSelectCredential,
++    onError: setOAuthError,
++  });
+ 
+   // Clean up on unmount
+   useEffect(() => {
+     return () => {
+-      oauthAbortRef.current?.();
++      isUnmountingRef.current = true;
++      oauthAbortRef.current?.("unmounted");
+     };
+   }, []);
+ 
+@@ -178,6 +202,7 @@ export function useCredentialsInput({
+ 
+     // MCP uses dynamic OAuth discovery per server URL
+     const isMCP = provider === "mcp" && !!discriminatorValue;
++    let mcpStateToken: string | undefined;
+ 
+     try {
+       let login_url: string;
+@@ -189,6 +214,12 @@ export function useCredentialsInput({
+         });
+         if (mcpLoginResponse.status !== 200) throw mcpLoginResponse.data;
+         ({ login_url, state_token } = mcpLoginResponse.data);
++        mcpStateToken = state_token;
++        savePendingMcpOAuthFlow({
++          stateToken: state_token,
++          serverUrl: discriminatorValue,
++          createdAt: Date.now(),
++        });
+       } else {
+         ({ login_url, state_token } = await api.oAuthLogin(
+           provider,
+@@ -229,9 +260,19 @@ export function useCredentialsInput({
+       const result = await promise;
+ 
+       // Exchange code for tokens via the provider (updates credential cache)
+-      const credentialResult = isMCP
+-        ? await mcpOAuthCallback(result.code, state_token)
+-        : await oAuthCallback(result.code, result.state);
++      let credentialResult;
++      if (isMCP) {
++        credentialResult = await resolveMcpOAuthResult(
++          result,
++          mcpOAuthCallback,
++          loadedCredentials?.mcpOAuthComplete,
++        );
++      } else {
++        if (!result.code) {
++          throw new Error("OAuth callback returned no authorization code");
++        }
++        credentialResult = await oAuthCallback(result.code, result.state);
++      }
+ 
+       // Check if the credential's scopes match the required scopes (skip for MCP)
+       if (!isMCP) {
+@@ -252,6 +293,10 @@ export function useCredentialsInput({
+         }
+       }
+ 
++      if (isMCP) {
++        clearPendingMcpOAuthFlow(state_token);
++        mcpStateToken = undefined;
++      }
+       onSelectCredential({
+         id: credentialResult.id,
+         type: "oauth2",
+@@ -270,7 +315,13 @@ export function useCredentialsInput({
+       } else {
+         setOAuthError(`OAuth error: ${message}`);
+       }
++      if (isMCP && selectedCredential && !selectedCredential.id) {
++        onSelectCredential(undefined);
++      }
+     } finally {
++      if (mcpStateToken && !isUnmountingRef.current) {
++        clearPendingMcpOAuthFlow(mcpStateToken);
++      }
+       setOAuth2FlowInProgress(false);
+       oauthAbortRef.current = null;
+     }
+diff --git a/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useMcpOAuthRecovery.ts b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useMcpOAuthRecovery.ts
+new file mode 100644
+index 000000000..14ed1dbbd
+--- /dev/null
++++ b/autogpt_platform/frontend/src/components/contextual/CredentialsInput/useMcpOAuthRecovery.ts
+@@ -0,0 +1,106 @@
++import type {
++  CredentialsMetaInput,
++  CredentialsMetaResponse,
++} from "@/lib/autogpt-server-api/types";
++import { resolveMcpOAuthResult } from "@/lib/oauth-popup";
++import { useEffect, useRef } from "react";
++import {
++  MCP_OAUTH_PENDING_TTL_MS,
++  clearPendingMcpOAuthFlow,
++  readPendingMcpOAuthFlow,
++  waitForMcpOAuthCallback,
++} from "./mcp-oauth-recovery";
++
++interface Params {
++  enabled: boolean;
++  serverUrl?: string;
++  selectedCredential?: CredentialsMetaInput;
++  mcpOAuthCallback?: (
++    code: string,
++    stateToken: string,
++  ) => Promise<CredentialsMetaResponse>;
++  mcpOAuthComplete?: (
++    credential: CredentialsMetaResponse,
++  ) => Promise<CredentialsMetaResponse>;
++  onSelectCredential: (newValue?: CredentialsMetaInput) => void;
++  onError: (message: string | null) => void;
++}
++
++export function useMcpOAuthRecovery({
++  enabled,
++  serverUrl,
++  selectedCredential,
++  mcpOAuthCallback,
++  mcpOAuthComplete,
++  onSelectCredential,
++  onError,
++}: Params): void {
++  const attemptedStateRef = useRef<string | null>(null);
++
++  useEffect(() => {
++    if (!enabled || !serverUrl || !mcpOAuthCallback) return;
++
++    const pending = readPendingMcpOAuthFlow(serverUrl);
++    if (!pending) {
++      if (selectedCredential && !selectedCredential.id) {
++        onSelectCredential(undefined);
++      }
++      return;
++    }
++    if (attemptedStateRef.current === pending.stateToken) return;
++    const pendingFlow = pending;
++    const exchangeMcpOAuthCode = mcpOAuthCallback;
++    attemptedStateRef.current = pendingFlow.stateToken;
++
++    const controller = new AbortController();
++    const remainingTimeout = Math.max(
++      0,
++      MCP_OAUTH_PENDING_TTL_MS - (Date.now() - pendingFlow.createdAt),
++    );
++
++    async function recoverCredential() {
++      try {
++        const result = await waitForMcpOAuthCallback({
++          stateToken: pendingFlow.stateToken,
++          signal: controller.signal,
++          timeoutMs: remainingTimeout,
++        });
++        const credential = await resolveMcpOAuthResult(
++          result,
++          exchangeMcpOAuthCode,
++          mcpOAuthComplete,
++        );
++        if (controller.signal.aborted) return;
++        onSelectCredential({
++          id: credential.id,
++          type: "oauth2",
++          title: credential.title,
++          provider: "mcp",
++        });
++        onError(null);
++      } catch (error) {
++        if (controller.signal.aborted) return;
++        const message = error instanceof Error ? error.message : String(error);
++        onError(`OAuth error: ${message}`);
++        if (selectedCredential && !selectedCredential.id) {
++          onSelectCredential(undefined);
++        }
++      } finally {
++        if (!controller.signal.aborted) {
++          clearPendingMcpOAuthFlow(pendingFlow.stateToken);
++        }
++      }
++    }
++
++    void recoverCredential();
++    return () => controller.abort();
++  }, [
++    enabled,
++    serverUrl,
++    selectedCredential,
++    mcpOAuthCallback,
++    mcpOAuthComplete,
++    onSelectCredential,
++    onError,
++  ]);
++}
+diff --git a/autogpt_platform/frontend/src/components/renderers/InputRenderer/__tests__/FormRenderer.test.tsx b/autogpt_platform/frontend/src/components/renderers/InputRenderer/__tests__/FormRenderer.test.tsx
+index 1e280124e..ad41fa7ce 100644
+--- a/autogpt_platform/frontend/src/components/renderers/InputRenderer/__tests__/FormRenderer.test.tsx
++++ b/autogpt_platform/frontend/src/components/renderers/InputRenderer/__tests__/FormRenderer.test.tsx
+@@ -94,6 +94,77 @@ vi.mock("@/components/__legacy__/ui/multiselect", () => ({
+ }));
+ 
+ describe("FormRenderer", () => {
++  it("renders string inputs for arrays whose item schema is missing", () => {
++    const handleChange = vi.fn();
++    const jsonSchema: RJSFSchema = {
++      type: "object",
++      properties: {
++        topics: {
++          title: "Topics",
++          type: "array",
++        },
++      },
++    };
++
++    render(
++      <FormRenderer
++        jsonSchema={jsonSchema}
++        handleChange={handleChange}
++        uiSchema={{}}
++        initialValues={{ topics: [] }}
++        formContext={{
++          nodeId: "conference-paper-agent-input",
++          uiType: BlockUIType.STANDARD,
++          showHandles: false,
++          size: "small",
++        }}
++      />,
++    );
++
++    expect(screen.queryByText(/Unsupported field schema/i)).toBeNull();
++
++    fireEvent.click(screen.getByRole("button", { name: /add item/i }));
++
++    expect(screen.getByRole("textbox")).toBeTruthy();
++  });
++
++  it("renders secret string fields as password inputs", () => {
++    const handleChange = vi.fn();
++    const jsonSchema: RJSFSchema = {
++      type: "object",
++      required: ["bridge_token"],
++      properties: {
++        bridge_token: {
++          title: "Bridge Token",
++          type: "string",
++          format: "password",
++          secret: true,
++          writeOnly: true,
++        },
++      },
++    };
++
++    render(
++      <FormRenderer
++        jsonSchema={jsonSchema}
++        handleChange={handleChange}
++        uiSchema={{}}
++        initialValues={{}}
++        formContext={{
++          nodeId: "collect-paper-likes",
++          uiType: BlockUIType.STANDARD,
++          showHandles: true,
++          size: "small",
++        }}
++      />,
++    );
++
++    const input = screen.getByPlaceholderText(
++      "Enter secret text...",
++    ) as HTMLInputElement;
++    expect(input.type).toBe("password");
++  });
++
+   it("round-trips numeric enum values for array item selects", async () => {
+     const handleChange = vi.fn();
+     const jsonSchema: RJSFSchema = {
+diff --git a/autogpt_platform/frontend/src/components/renderers/InputRenderer/base/base-registry.ts b/autogpt_platform/frontend/src/components/renderers/InputRenderer/base/base-registry.ts
+index 0a6d478d1..bfec1f829 100644
+--- a/autogpt_platform/frontend/src/components/renderers/InputRenderer/base/base-registry.ts
++++ b/autogpt_platform/frontend/src/components/renderers/InputRenderer/base/base-registry.ts
+@@ -62,6 +62,7 @@ export function generateBaseTemplates(): Partial<TemplatesType> {
+ export function generateBaseWidgets(): RegistryWidgetsType {
+   return {
+     TextWidget,
++    PasswordWidget: TextWidget,
+     SelectWidget,
+     CheckboxWidget,
+     FileWidget,
+diff --git a/autogpt_platform/frontend/src/components/renderers/InputRenderer/utils/input-schema-pre-processor.ts b/autogpt_platform/frontend/src/components/renderers/InputRenderer/utils/input-schema-pre-processor.ts
+index 9d1aa2c60..eb0132cc4 100644
+--- a/autogpt_platform/frontend/src/components/renderers/InputRenderer/utils/input-schema-pre-processor.ts
++++ b/autogpt_platform/frontend/src/components/renderers/InputRenderer/utils/input-schema-pre-processor.ts
+@@ -38,8 +38,14 @@ export function preprocessInputSchema(schema: RJSFSchema): RJSFSchema {
+           ];
+         }
+ 
+-        // when encountering an array with items missing type
+-        if (processedProperty.type === "array" && processedProperty.items) {
++        const isArray =
++          processedProperty.type === "array" ||
++          (Array.isArray(processedProperty.type) &&
++            processedProperty.type.includes("array"));
++
++        if (isArray && !processedProperty.items) {
++          processedProperty.items = { type: "string" };
++        } else if (isArray && processedProperty.items) {
+           const items = processedProperty.items as RJSFSchema;
+           if (!items.type && !items.anyOf && !items.oneOf && !items.allOf) {
+             processedProperty.items = {
+@@ -64,9 +70,7 @@ export function preprocessInputSchema(schema: RJSFSchema): RJSFSchema {
+ 
+         // Process array items
+         if (
+-          processedProperty.type === "array" ||
+-          (Array.isArray(processedProperty.type) &&
+-            processedProperty.type.includes("array"))
++          isArray
+         ) {
+           if (processedProperty.items) {
+             processedProperty.items = preprocessInputSchema(
+diff --git a/autogpt_platform/frontend/src/lib/oauth-popup.test.ts b/autogpt_platform/frontend/src/lib/oauth-popup.test.ts
+index 4202c0e71..785bf6ab5 100644
+--- a/autogpt_platform/frontend/src/lib/oauth-popup.test.ts
++++ b/autogpt_platform/frontend/src/lib/oauth-popup.test.ts
+@@ -3,6 +3,7 @@ import {
+   OAUTH_ERROR_FLOW_CANCELED,
+   OAUTH_ERROR_WINDOW_CLOSED,
+   openOAuthPopup,
++  resolveMcpOAuthResult,
+ } from "./oauth-popup";
+ 
+ // Minimal popup stub — window.open returns this. `closed` flips when the
+@@ -242,4 +243,72 @@ describe("openOAuthPopup popup-close grace window", () => {
+ 
+     cleanup.abort();
+   });
++
++  test("resolves an MCP result that already contains stored credential metadata", async () => {
++    const popup = makePopupStub();
++    setupPopup(popup);
++
++    const { promise } = openOAuthPopup("https://example.com/oauth", {
++      stateToken: "mcp-state",
++      useCrossOriginListeners: true,
++      acceptMessageTypes: ["mcp_oauth_result"],
++    });
++    const credential = {
++      id: "credential-1",
++      provider: "mcp",
++      type: "oauth2",
++      title: "alphaXiv",
++      scopes: [],
++      username: null,
++      host: "https://api.alphaxiv.org/mcp",
++    };
++
++    window.dispatchEvent(
++      new MessageEvent("message", {
++        data: {
++          message_type: "mcp_oauth_result",
++          success: true,
++          state: "mcp-state",
++          credential,
++        },
++      }),
++    );
++
++    await expect(promise).resolves.toEqual({
++      state: "mcp-state",
++      credential: {
++        id: "credential-1",
++        provider: "mcp",
++        type: "oauth2",
++        title: "alphaXiv",
++        scopes: [],
++        host: "https://api.alphaxiv.org/mcp",
++      },
++    });
++  });
++});
++
++describe("resolveMcpOAuthResult", () => {
++  test("adopts credentials completed by the callback page", async () => {
++    const credential = {
++      id: "credential-1",
++      provider: "mcp",
++      type: "oauth2" as const,
++      title: "alphaXiv",
++      scopes: [],
++    };
++    const exchangeCode = vi.fn();
++    const adoptCredential = vi.fn().mockResolvedValue(credential);
++
++    await expect(
++      resolveMcpOAuthResult(
++        { credential, state: "mcp-state" },
++        exchangeCode,
++        adoptCredential,
++      ),
++    ).resolves.toEqual(credential);
++
++    expect(exchangeCode).not.toHaveBeenCalled();
++    expect(adoptCredential).toHaveBeenCalledWith(credential);
++  });
+ });
+diff --git a/autogpt_platform/frontend/src/lib/oauth-popup.ts b/autogpt_platform/frontend/src/lib/oauth-popup.ts
+index 9e17f1e3d..56665ad7b 100644
+--- a/autogpt_platform/frontend/src/lib/oauth-popup.ts
++++ b/autogpt_platform/frontend/src/lib/oauth-popup.ts
+@@ -6,6 +6,8 @@
+  * sever the window.opener relationship.
+  */
+ 
++import type { CredentialsMetaResponse } from "@/lib/autogpt-server-api/types";
++
+ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+ 
+ export const OAUTH_ERROR_WINDOW_CLOSED = "Sign-in window was closed";
+@@ -14,10 +16,75 @@ export const OAUTH_ERROR_FLOW_TIMED_OUT = "OAuth flow timed out";
+ export const OAUTH_ERROR_POPUP_BLOCKED =
+   "Popup blocked — sign-in opened in a new tab. If you don't see it, allow popups for this site and retry.";
+ 
+-export type OAuthPopupResult = {
+-  code: string;
+-  state: string;
+-};
++export type OAuthPopupResult =
++  | {
++      code: string;
++      state: string;
++      credential?: never;
++    }
++  | {
++      credential: CredentialsMetaResponse;
++      state: string;
++      code?: never;
++    };
++
++export function normalizeOAuthCredentialMeta(
++  value: unknown,
++): CredentialsMetaResponse | null {
++  if (typeof value !== "object" || value === null) return null;
++  const credential = value as Record<string, unknown>;
++  if (
++    typeof credential.id !== "string" ||
++    credential.id.length === 0 ||
++    typeof credential.provider !== "string" ||
++    !["api_key", "oauth2", "user_password", "host_scoped"].includes(
++      String(credential.type),
++    )
++  ) {
++    return null;
++  }
++
++  return {
++    id: credential.id,
++    provider: credential.provider,
++    type: credential.type as CredentialsMetaResponse["type"],
++    ...(typeof credential.title === "string"
++      ? { title: credential.title }
++      : {}),
++    ...(Array.isArray(credential.scopes) &&
++    credential.scopes.every((scope) => typeof scope === "string")
++      ? { scopes: credential.scopes as string[] }
++      : {}),
++    ...(typeof credential.username === "string"
++      ? { username: credential.username }
++      : {}),
++    ...(typeof credential.host === "string" ? { host: credential.host } : {}),
++    ...(typeof credential.is_system === "boolean"
++      ? { is_system: credential.is_system }
++      : {}),
++    ...(typeof credential.is_managed === "boolean"
++      ? { is_managed: credential.is_managed }
++      : {}),
++  };
++}
++
++export async function resolveMcpOAuthResult(
++  result: OAuthPopupResult,
++  exchangeCode: (
++    code: string,
++    stateToken: string,
++  ) => Promise<CredentialsMetaResponse>,
++  adoptCredential?: (
++    credential: CredentialsMetaResponse,
++  ) => CredentialsMetaResponse | Promise<CredentialsMetaResponse>,
++): Promise<CredentialsMetaResponse> {
++  if (result.credential) {
++    return adoptCredential
++      ? adoptCredential(result.credential)
++      : result.credential;
++  }
++  return exchangeCode(result.code, result.state);
++}
+ 
+ export type OAuthPopupOptions = {
+   /** State token to validate against incoming messages */
+@@ -136,10 +203,19 @@ export function openOAuthPopup(
+ 
+       handled = true;
+ 
++      const credential = normalizeOAuthCredentialMeta(data.credential);
++
+       if (!data.success) {
+         reject(new Error(data.message || "OAuth authentication failed"));
+-      } else {
++      } else if (credential) {
++        resolve({
++          credential,
++          state: data.state,
++        });
++      } else if (typeof data.code === "string" && data.code.length > 0) {
+         resolve({ code: data.code, state: data.state });
++      } else {
++        reject(new Error("OAuth callback returned no code or credential"));
+       }
+ 
+       controller.abort("completed");
+diff --git a/autogpt_platform/frontend/src/providers/agent-credentials/__tests__/credentials-provider.test.ts b/autogpt_platform/frontend/src/providers/agent-credentials/__tests__/credentials-provider.test.ts
+index 7f986789e..5b5ff8081 100644
+--- a/autogpt_platform/frontend/src/providers/agent-credentials/__tests__/credentials-provider.test.ts
++++ b/autogpt_platform/frontend/src/providers/agent-credentials/__tests__/credentials-provider.test.ts
+@@ -35,6 +35,7 @@ function makeProviderMap(
+       isSystemProvider: false,
+       oAuthCallback: async () => makeCred({}),
+       mcpOAuthCallback: async () => makeCred({}),
++      mcpOAuthComplete: async (credentials) => credentials,
+       createAPIKeyCredentials: async () => makeCred({}),
+       createUserPasswordCredentials: async () => makeCred({}),
+       createHostScopedCredentials: async () => makeCred({}),
+diff --git a/autogpt_platform/frontend/src/providers/agent-credentials/credentials-provider.tsx b/autogpt_platform/frontend/src/providers/agent-credentials/credentials-provider.tsx
+index e9bfe2a16..d6b7fba9e 100644
+--- a/autogpt_platform/frontend/src/providers/agent-credentials/credentials-provider.tsx
++++ b/autogpt_platform/frontend/src/providers/agent-credentials/credentials-provider.tsx
+@@ -46,6 +46,10 @@ export type CredentialsProviderData = {
+     code: string,
+     state_token: string,
+   ) => Promise<CredentialsMetaResponse>;
++  /** Adds credentials already stored by the MCP callback page to local state. */
++  mcpOAuthComplete: (
++    credentials: CredentialsMetaResponse,
++  ) => Promise<CredentialsMetaResponse>;
+   createAPIKeyCredentials: (
+     credentials: APIKeyCredentialsCreatable,
+   ) => Promise<CredentialsMetaResponse>;
+@@ -186,6 +190,16 @@ export default function CredentialsProvider({
+     [upsertCredentials, onFailToast],
+   );
+ 
++  const mcpOAuthComplete = useCallback(
++    async (
++      credentials: CredentialsMetaResponse,
++    ): Promise<CredentialsMetaResponse> => {
++      upsertCredentials("mcp", credentials);
++      return credentials;
++    },
++    [upsertCredentials],
++  );
++
+   /** Wraps `BackendAPI.createAPIKeyCredentials`, and adds the result to the internal credentials store. */
+   const createAPIKeyCredentials = useCallback(
+     async (
+@@ -321,6 +335,7 @@ export default function CredentialsProvider({
+                   oAuthCallback: (code: string, state_token: string) =>
+                     oAuthCallback(provider, code, state_token),
+                   mcpOAuthCallback,
++                  mcpOAuthComplete,
+                   createAPIKeyCredentials: (
+                     credentials: APIKeyCredentialsCreatable,
+                   ) => createAPIKeyCredentials(provider, credentials),
+@@ -350,6 +365,7 @@ export default function CredentialsProvider({
+     deleteCredentials,
+     oAuthCallback,
+     mcpOAuthCallback,
++    mcpOAuthComplete,
+     onFailToast,
+   ]);
+ 

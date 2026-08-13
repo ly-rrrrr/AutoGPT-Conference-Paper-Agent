@@ -1,0 +1,809 @@
+{
+  "id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+  "version": 1,
+  "is_active": true,
+  "name": "Conference Paper Research Agent",
+  "description": "Discover and fully process CVPR 2026 papers with alphaXiv likes and complete question-answer reports.",
+  "instructions": "Use topics=[] and max_papers=0 for all arXiv-backed CVPR 2026 papers. Keep the same run_id to resume an interrupted run. ShadowBot remains an optional likes fallback.",
+  "recommended_schedule_cron": null,
+  "forked_from_id": null,
+  "forked_from_version": null,
+  "user_id": "",
+  "created_at": "2026-07-19T00:00:00Z",
+  "nodes": [
+    {
+      "id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "block_id": "c0a8e994-ebf1-4a9c-a4d8-89d09c86741b",
+      "input_default": {
+        "name": "config",
+        "value": {
+          "conference": "CVPR",
+          "year": 2026,
+          "topics": [],
+          "paper_questions": [
+            "What research problem does this paper solve?",
+            "Summarize the core method, main contributions, key experimental results, and limitations."
+          ],
+          "max_papers": 0,
+          "run_id": "cvpr-2026-full",
+          "likes_strategy": "alphaxiv_api",
+          "bridge_url": "http://host.docker.internal:8765",
+          "analysis_concurrency": 3
+        },
+        "description": "CVPR 2026 full research run configuration",
+        "advanced": false
+      },
+      "metadata": {
+        "position": {
+          "x": -600,
+          "y": 200
+        }
+      },
+      "input_links": [],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_topics",
+          "sink_name": "topics",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_paper_questions",
+          "sink_name": "paper_questions",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_max_papers",
+          "sink_name": "max_papers",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_bridge_url",
+          "sink_name": "bridge_url",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_likes_strategy",
+          "sink_name": "likes_strategy",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000008",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_topics",
+          "sink_name": "run_input_#_topics",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000009",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_paper_questions",
+          "sink_name": "run_input_#_paper_questions",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000010",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_max_papers",
+          "sink_name": "run_input_#_max_papers",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000022",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_likes_strategy",
+          "sink_name": "run_input_#_likes_strategy",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000023",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "source_name": "result_#_year",
+          "sink_name": "year",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000024",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000025",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_year",
+          "sink_name": "run_input_#_year",
+          "is_static": true
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+      "block_id": "f2b5d8a1-6c34-4e97-8b12-0a9d7c3e5f41",
+      "input_default": {
+        "conference": "CVPR",
+        "year": 2026,
+        "conference_index_url": null
+      },
+      "metadata": {
+        "position": {
+          "x": -300,
+          "y": 200
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000023",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "source_name": "result_#_year",
+          "sink_name": "year",
+          "is_static": true
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "discovery",
+          "sink_name": "discovery",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "discovery",
+          "sink_name": "discovery",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "block_id": "a8c7e1d2-5b64-4f90-9a31-2d6e8b4c7f05",
+      "input_default": {},
+      "metadata": {
+        "position": {
+          "x": 0,
+          "y": 200
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_topics",
+          "sink_name": "topics",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_paper_questions",
+          "sink_name": "paper_questions",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "result_#_max_papers",
+          "sink_name": "max_papers",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "source_name": "discovery",
+          "sink_name": "discovery",
+          "is_static": false
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000013",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "selection_#_paper_tasks",
+          "sink_name": "paper_tasks",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "selection_#_paper_tasks",
+          "sink_name": "paper_tasks",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000015",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "selection",
+          "sink_name": "selection",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000016",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "selection",
+          "sink_name": "selection",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "block_id": "c1d4e7a9-2b58-4f63-8c90-5e7a1d3b6f42",
+      "input_default": {
+        "analysis_concurrency": 3,
+        "analysis_mode": "structured_llm",
+        "model": "gpt-5.6-luna"
+      },
+      "metadata": {
+        "position": {
+          "x": 300,
+          "y": 50
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000024",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000013",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "source_name": "selection_#_paper_tasks",
+          "sink_name": "paper_tasks",
+          "is_static": false
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000017",
+          "source_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "analyses",
+          "sink_name": "analyses",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "block_id": "e6a2c9d5-7b14-4f83-9d60-1c5e8a2b7f34",
+      "input_default": {
+        "api_concurrency": 20,
+        "api_request_timeout_seconds": 20,
+        "poll_interval_seconds": 5,
+        "timeout_seconds": 1740
+      },
+      "metadata": {
+        "position": {
+          "x": 300,
+          "y": 350
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_bridge_url",
+          "sink_name": "bridge_url",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "result_#_likes_strategy",
+          "sink_name": "likes_strategy",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "source_name": "selection_#_paper_tasks",
+          "sink_name": "paper_tasks",
+          "is_static": false
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000018",
+          "source_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "likes_results",
+          "sink_name": "likes_results",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "block_id": "b3e8a1c6-4d72-4f95-8b30-6a1e9c5d2f47",
+      "input_default": {},
+      "metadata": {
+        "position": {
+          "x": 600,
+          "y": 200
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000015",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "selection",
+          "sink_name": "selection",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000017",
+          "source_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "analyses",
+          "sink_name": "analyses",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000018",
+          "source_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+          "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "source_name": "likes_results",
+          "sink_name": "likes_results",
+          "is_static": false
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000019",
+          "source_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "paper_results",
+          "sink_name": "paper_results",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "block_id": "d7c1b4e8-9a25-4f60-8e13-3b6d2a9c5f74",
+      "input_default": {
+        "run_input": {
+          "conference": "CVPR",
+          "year": 2026,
+          "likes_strategy": "alphaxiv_api",
+          "topics": [],
+          "max_papers": 0,
+          "paper_questions": [
+            "What research problem does this paper solve?",
+            "Summarize the core method, main contributions, key experimental results, and limitations."
+          ],
+          "analysis_concurrency": 3
+        }
+      },
+      "metadata": {
+        "position": {
+          "x": 900,
+          "y": 200
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000025",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_year",
+          "sink_name": "run_input_#_year",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_run_id",
+          "sink_name": "run_id",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000008",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_topics",
+          "sink_name": "run_input_#_topics",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000009",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_paper_questions",
+          "sink_name": "run_input_#_paper_questions",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000010",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_max_papers",
+          "sink_name": "run_input_#_max_papers",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000022",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_likes_strategy",
+          "sink_name": "run_input_#_likes_strategy",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "discovery",
+          "sink_name": "discovery",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000016",
+          "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "selection",
+          "sink_name": "selection",
+          "is_static": false
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000019",
+          "source_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "paper_results",
+          "sink_name": "paper_results",
+          "is_static": false
+        }
+      ],
+      "output_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000020",
+          "source_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "sink_id": "c96b876e-fc97-4a0d-8bb6-8b0a89f9c1a5",
+          "source_name": "summary_path",
+          "sink_name": "value",
+          "is_static": false
+        }
+      ],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    },
+    {
+      "id": "c96b876e-fc97-4a0d-8bb6-8b0a89f9c1a5",
+      "block_id": "363ae599-353e-4804-937e-b2ee3cef3da4",
+      "input_default": {
+        "name": "conference_summary_path",
+        "description": "Generated conference summary Markdown path",
+        "advanced": false,
+        "escape_html": false
+      },
+      "metadata": {
+        "position": {
+          "x": 1200,
+          "y": 200
+        }
+      },
+      "input_links": [
+        {
+          "id": "00000000-0000-4000-8000-000000000020",
+          "source_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "sink_id": "c96b876e-fc97-4a0d-8bb6-8b0a89f9c1a5",
+          "source_name": "summary_path",
+          "sink_name": "value",
+          "is_static": false
+        }
+      ],
+      "output_links": [],
+      "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
+      "graph_version": 1,
+      "webhook_id": null
+    }
+  ],
+  "links": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "source_name": "result_#_topics",
+      "sink_name": "topics",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "source_name": "result_#_paper_questions",
+      "sink_name": "paper_questions",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "source_name": "result_#_max_papers",
+      "sink_name": "max_papers",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "source_name": "result_#_run_id",
+      "sink_name": "run_id",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "source_name": "result_#_bridge_url",
+      "sink_name": "bridge_url",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000021",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "source_name": "result_#_likes_strategy",
+      "sink_name": "likes_strategy",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "source_name": "result_#_run_id",
+      "sink_name": "run_id",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_run_id",
+      "sink_name": "run_id",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_topics",
+      "sink_name": "run_input_#_topics",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_paper_questions",
+      "sink_name": "run_input_#_paper_questions",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_max_papers",
+      "sink_name": "run_input_#_max_papers",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000022",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_likes_strategy",
+      "sink_name": "run_input_#_likes_strategy",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000023",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+      "source_name": "result_#_year",
+      "sink_name": "year",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000024",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "result_#_run_id",
+      "sink_name": "run_id",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000025",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_year",
+      "sink_name": "run_input_#_year",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+      "sink_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "source_name": "discovery",
+      "sink_name": "discovery",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "source_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "discovery",
+      "sink_name": "discovery",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "sink_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "source_name": "selection_#_paper_tasks",
+      "sink_name": "paper_tasks",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "sink_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "source_name": "selection_#_paper_tasks",
+      "sink_name": "paper_tasks",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000015",
+      "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "source_name": "selection",
+      "sink_name": "selection",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000016",
+      "source_id": "a00c768c-5c9f-4554-9829-4cd79e32a5cc",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "selection",
+      "sink_name": "selection",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000017",
+      "source_id": "f7fe6679-7b74-4333-ac40-8b9a13aa64e4",
+      "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "source_name": "analyses",
+      "sink_name": "analyses",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000018",
+      "source_id": "a4f80c40-776b-4f50-9b53-b8ec5ca75530",
+      "sink_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "source_name": "likes_results",
+      "sink_name": "likes_results",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000019",
+      "source_id": "c5557508-4cf5-42d8-8583-d859f9d801af",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "paper_results",
+      "sink_name": "paper_results",
+      "is_static": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "source_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "sink_id": "c96b876e-fc97-4a0d-8bb6-8b0a89f9c1a5",
+      "source_name": "summary_path",
+      "sink_name": "value",
+      "is_static": false
+    }
+  ],
+  "sub_graphs": []
+}

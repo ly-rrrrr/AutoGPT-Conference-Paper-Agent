@@ -1,0 +1,11 @@
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+*.token
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
