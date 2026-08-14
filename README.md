@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![Docs](https://img.shields.io/badge/文档-中文-brightgreen)](docs/README.md)
 
-[快速开始](#快速开始) · [核心源码](src/README.md) · [运行手册](docs/runbook.md) · [设计规格](docs/spec.md)
+[处理结果](#cvpr-2026-处理结果) · [快速开始](#快速开始) · [核心源码](src/README.md) · [运行手册](docs/runbook.md) · [设计规格](docs/spec.md)
 
 </div>
 
@@ -163,6 +163,12 @@ AutoGPT/projects/conference-paper-research-agent/data/runs/<run_id>/
 ```
 
 运行中断后保持问题配置不变，并复用同一个 `run_id` 再次运行，系统会从 checkpoint 继续。
+
+## CVPR 2026 处理结果
+
+CVPR 2026 全量运行生成的逐篇 Markdown 报告已归档至 Google Drive，内容对应本地 `data/runs/cvpr-2026-luna-full-01/reports/`，包含论文基本信息、alphaXiv Likes 以及完整问题与 AI 回答。
+
+**[查看 CVPR 2026 论文处理结果 →](https://drive.google.com/drive/folders/1X8PxKegbFCT2C4XfoCS88WD13vXBdfbG?usp=drive_link)**
 
 ## Likes 双策略
 
