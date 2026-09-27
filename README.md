@@ -17,6 +17,8 @@
 
 ## 项目概述
 
+ECCV 2026 的 arXiv 映射工具已作为独立数据准备阶段提供：`python scripts/map_eccv_arxiv.py --limit 50`。工具保存完整官方目录，按标题和作者核验候选，并支持缓存与断点恢复；尚未接入下方 CVPR 专用 Graph。详见 [ECCV 映射运行说明](docs/eccv-arxiv-mapping.md)。
+
 面对数千篇顶会论文，逐篇检查 arXiv、查看热度、阅读全文并重复提问非常耗时。本项目在 **AutoGPT Platform** 上实现了一条可视化、可并行、可恢复的论文研究 Agent：输入会议年份和研究问题，即可自动生成带 Likes 与完整问答的单篇报告。
 
 当前初版支持 **CVPR 2026 全量处理**。它是 AutoGPT 的二次开发扩展，不包含无关的 AutoGPT 上游源码；通过安装脚本接入指定版本的官方框架。
