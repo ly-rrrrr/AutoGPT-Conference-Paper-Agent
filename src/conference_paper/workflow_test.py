@@ -14,7 +14,7 @@ from backend.blocks.conference_paper.selection import SelectConferencePapersBloc
 from backend.blocks.io import AgentInputBlock, AgentOutputBlock
 from backend.data.graph import GraphModel
 
-GRAPH_PATH = Path(__file__).parents[3] / "agents/conference-paper-research-agent.json"
+GRAPH_PATH = Path(__file__).parents[2] / "agent/conference-paper-research-agent.json"
 
 DOMAIN_BLOCKS = (
     DiscoverCVFPapersBlock,
@@ -75,7 +75,7 @@ def test_graph_exposes_required_config_with_safe_defaults(graph: GraphModel):
     )
     config = input_node.input_default["value"]
 
-    assert config["conference"] == "CVPR"
+    assert config["conference"] == "ECCV"
     assert config["year"] == 2026
     assert config["max_papers"] == 0
     assert config["likes_strategy"] == "alphaxiv_api"
@@ -83,6 +83,13 @@ def test_graph_exposes_required_config_with_safe_defaults(graph: GraphModel):
     assert config["topics"] == []
     assert config["paper_questions"]
     assert config["run_id"]
+
+    discover_node = next(
+        node for node in graph.nodes if node.block_id == DiscoverCVFPapersBlock().id
+    )
+    assert discover_node.input_default["mapping_file"] == (
+        "eccv-2026-mapping/mappings.jsonl"
+    )
 
     analyze_node = next(
         node
@@ -108,11 +115,13 @@ def test_top_level_and_node_link_copies_are_identical(graph: GraphModel):
 def test_selection_fans_out_then_results_join_before_agent_output(graph: GraphModel):
     nodes_by_block = {node.block_id: node for node in graph.nodes}
     select = nodes_by_block[SelectConferencePapersBlock().id]
+    discover = nodes_by_block[DiscoverCVFPapersBlock().id]
     analyze = nodes_by_block[AnalyzeConferencePapersBlock().id]
     likes = nodes_by_block[CollectPaperLikesBlock().id]
     persist = nodes_by_block[PersistPaperResultsBlock().id]
     aggregate = nodes_by_block[AggregatePaperReportBlock().id]
     output = nodes_by_block[AgentOutputBlock().id]
+    input_node = nodes_by_block[AgentInputBlock().id]
     edges = {
         (link.source_id, link.source_name, link.sink_id, link.sink_name)
         for link in graph.links
@@ -124,6 +133,18 @@ def test_selection_fans_out_then_results_join_before_agent_output(graph: GraphMo
     assert (likes.id, "likes_results", persist.id, "likes_results") in edges
     assert (persist.id, "paper_results", aggregate.id, "paper_results") in edges
     assert (aggregate.id, "summary_path", output.id, "value") in edges
+    assert (
+        input_node.id,
+        "result_#_conference",
+        discover.id,
+        "conference",
+    ) in edges
+    assert (
+        input_node.id,
+        "result_#_conference",
+        aggregate.id,
+        "run_input_#_conference",
+    ) in edges
 
 
 def test_graph_contains_no_plain_credentials(graph_data: dict):

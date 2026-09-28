@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 ConferenceYear = Literal[2025, 2026]
+ConferenceName = Literal["CVPR", "ECCV"]
 AnalysisMode = Literal["mcp_qa_raw", "mcp_report", "structured_llm"]
 
 
@@ -43,7 +44,7 @@ class PaperStatus(StrEnum):
 
 
 class ConferenceRunInput(ContractModel):
-    conference: Literal["CVPR"] = "CVPR"
+    conference: ConferenceName = "CVPR"
     year: ConferenceYear = 2026
     likes_strategy: Literal["alphaxiv_api", "shadowbot"] = "alphaxiv_api"
     topics: list[str] = Field(default_factory=list)
@@ -72,7 +73,7 @@ class ConferenceRunInput(ContractModel):
 
 
 class PaperSeed(ContractModel):
-    conference: Literal["CVPR"]
+    conference: ConferenceName
     year: ConferenceYear
     title: str
     authors: list[str] = Field(default_factory=list)
@@ -101,7 +102,7 @@ class PaperSeed(ContractModel):
 
 
 class PaperTask(ContractModel):
-    conference: Literal["CVPR"]
+    conference: ConferenceName
     year: ConferenceYear
     title: str
     authors: list[str] = Field(default_factory=list)

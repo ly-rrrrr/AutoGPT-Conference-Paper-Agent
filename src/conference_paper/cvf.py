@@ -2,6 +2,7 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -16,6 +17,7 @@ from backend.blocks._base import (
     BlockSchemaOutput,
 )
 from backend.blocks.conference_paper.models import (
+    ConferenceName,
     ConferenceYear,
     DiscoveryCounts,
     DiscoveryResult,
@@ -24,6 +26,8 @@ from backend.blocks.conference_paper.models import (
     RejectedPaperSeed,
     RunStatus,
 )
+from backend.blocks.conference_paper.eccv import load_eccv_mapping, resolve_mapping_path
+from backend.blocks.conference_paper.checkpoints import DEFAULT_OUTPUT_ROOT
 from backend.blocks.conference_paper.urls import (
     ARXIV_HOSTS,
     CVF_HOSTS,
@@ -60,7 +64,7 @@ class DayFetchResult(BaseModel):
 
 class DiscoverCVFPapersBlock(Block):
     class Input(BlockSchemaInput):
-        conference: Literal["CVPR"] = SchemaField(
+        conference: ConferenceName = SchemaField(
             default="CVPR", description="Conference name"
         )
         year: ConferenceYear = SchemaField(default=2026, description="Conference year")
@@ -68,13 +72,18 @@ class DiscoverCVFPapersBlock(Block):
             default=None,
             description="Optional official CVF index override; derived from year by default",
         )
+        mapping_file: str = SchemaField(
+            default="eccv-2026-mapping/mappings.jsonl",
+            description="ECCV mapping JSONL path relative to the project data directory",
+        )
 
     class Output(BlockSchemaOutput):
         discovery: DiscoveryResult = SchemaField(
             description="Discovered and validated CVF paper records"
         )
 
-    def __init__(self):
+    def __init__(self, mapping_root: Path | None = None):
+        self._mapping_root = mapping_root or DEFAULT_OUTPUT_ROOT.parent
         super().__init__(
             id="f2b5d8a1-6c34-4e97-8b12-0a9d7c3e5f41",
             description="Discovers CVPR papers from the official CVF repository.",
@@ -84,6 +93,10 @@ class DiscoverCVFPapersBlock(Block):
         )
 
     async def run(self, input_data: Input, **kwargs) -> BlockOutput:
+        if input_data.conference == "ECCV":
+            path = resolve_mapping_path(self._mapping_root, input_data.mapping_file)
+            yield "discovery", load_eccv_mapping(path)
+            return
         index_url = input_data.conference_index_url or cvpr_index_url(input_data.year)
         discovery = await discover_papers(index_url)
         yield "discovery", discovery

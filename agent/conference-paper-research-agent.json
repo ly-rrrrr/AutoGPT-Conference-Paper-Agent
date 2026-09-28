@@ -3,8 +3,8 @@
   "version": 1,
   "is_active": true,
   "name": "Conference Paper Research Agent",
-  "description": "Discover and fully process CVPR 2026 papers with alphaXiv likes and complete question-answer reports.",
-  "instructions": "Use topics=[] and max_papers=0 for all arXiv-backed CVPR 2026 papers. Keep the same run_id to resume an interrupted run. ShadowBot remains an optional likes fallback.",
+  "description": "Discover and fully process arXiv-mapped ECCV 2026 papers with alphaXiv likes and complete question-answer reports.",
+  "instructions": "Use topics=[] and max_papers=0 for all successfully mapped ECCV 2026 papers. Keep the same run_id to resume an interrupted run. Unmatched papers are skipped and retain their failure reasons in mappings.jsonl.",
   "recommended_schedule_cron": null,
   "forked_from_id": null,
   "forked_from_version": null,
@@ -17,7 +17,7 @@
       "input_default": {
         "name": "config",
         "value": {
-          "conference": "CVPR",
+          "conference": "ECCV",
           "year": 2026,
           "topics": [],
           "paper_questions": [
@@ -25,7 +25,7 @@
             "Summarize the core method, main contributions, key experimental results, and limitations."
           ],
           "max_papers": 0,
-          "run_id": "cvpr-2026-full",
+          "run_id": "eccv-2026-luna-full-01",
           "likes_strategy": "alphaxiv_api",
           "bridge_url": "http://host.docker.internal:8765",
           "analysis_concurrency": 1,
@@ -33,7 +33,7 @@
           "max_new_analyses_per_run": 400,
           "authorization_circuit_breaker": true
         },
-        "description": "CVPR 2026 full research run configuration",
+        "description": "ECCV 2026 arXiv-mapped research run configuration",
         "advanced": false
       },
       "metadata": {
@@ -195,6 +195,22 @@
           "source_name": "result_#_year",
           "sink_name": "run_input_#_year",
           "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000030",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "source_name": "result_#_conference",
+          "sink_name": "conference",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000031",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_conference",
+          "sink_name": "run_input_#_conference",
+          "is_static": true
         }
       ],
       "graph_id": "9c0f827e-feb2-4a50-9f9e-5ddb4a91e7bb",
@@ -205,9 +221,10 @@
       "id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
       "block_id": "f2b5d8a1-6c34-4e97-8b12-0a9d7c3e5f41",
       "input_default": {
-        "conference": "CVPR",
+        "conference": "ECCV",
         "year": 2026,
-        "conference_index_url": null
+        "conference_index_url": null,
+        "mapping_file": "eccv-2026-mapping/mappings.jsonl"
       },
       "metadata": {
         "position": {
@@ -222,6 +239,14 @@
           "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
           "source_name": "result_#_year",
           "sink_name": "year",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000030",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+          "source_name": "result_#_conference",
+          "sink_name": "conference",
           "is_static": true
         }
       ],
@@ -536,7 +561,7 @@
       "block_id": "d7c1b4e8-9a25-4f60-8e13-3b6d2a9c5f74",
       "input_default": {
         "run_input": {
-          "conference": "CVPR",
+          "conference": "ECCV",
           "year": 2026,
           "likes_strategy": "alphaxiv_api",
           "topics": [],
@@ -604,6 +629,14 @@
           "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
           "source_name": "result_#_likes_strategy",
           "sink_name": "run_input_#_likes_strategy",
+          "is_static": true
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000031",
+          "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+          "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+          "source_name": "result_#_conference",
+          "sink_name": "run_input_#_conference",
           "is_static": true
         },
         {
@@ -827,6 +860,22 @@
       "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
       "source_name": "result_#_year",
       "sink_name": "run_input_#_year",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "c06f98ed-8001-43cd-afac-da7c3585eeca",
+      "source_name": "result_#_conference",
+      "sink_name": "conference",
+      "is_static": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000031",
+      "source_id": "38edbcb4-218d-4298-b6c9-cb8aab63968e",
+      "sink_id": "786d5608-9c3c-481c-b7d5-c919655b20be",
+      "source_name": "result_#_conference",
+      "sink_name": "run_input_#_conference",
       "is_static": true
     },
     {
