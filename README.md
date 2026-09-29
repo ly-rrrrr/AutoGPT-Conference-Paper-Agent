@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![Docs](https://img.shields.io/badge/文档-中文-brightgreen)](docs/README.md)
 
-[处理结果](#cvpr-2026-处理结果) · [快速开始](#快速开始) · [核心源码](src/README.md) · [运行手册](docs/runbook.md) · [设计规格](docs/spec.md)
+[处理结果](#cvpr-2026-处理结果) · [快速开始](#快速开始) · [本机控制台](docs/论文控制台操作指南.md) · [核心源码](src/README.md) · [运行手册](docs/runbook.md) · [设计规格](docs/spec.md)
 
 </div>
 
@@ -84,6 +84,8 @@ python scripts/install.py --autogpt-root "..\AutoGPT"
 ```
 
 脚本会检查 AutoGPT 目录和兼容版本，应用必要补丁，并安装领域 Block、Bridge 与可导入 Agent。它不会复制 API Key 或运行结果。
+
+完成首次导入和凭证配置后，Windows 用户可双击仓库根目录的 `启动论文研究.cmd`。它会启动 Docker 服务并打开中文控制台，用于继续 ECCV 映射、开始或停止分析、查看进度和打开结果目录。具体说明见[本机论文研究控制台](docs/论文控制台操作指南.md)。
 
 ### 3. 配置模型服务并启动
 
