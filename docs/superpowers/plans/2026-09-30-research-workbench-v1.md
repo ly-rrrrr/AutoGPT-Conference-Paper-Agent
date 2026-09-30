@@ -470,7 +470,7 @@ git commit -m "feat(workbench): add hierarchical application shell"
 - Modify: `workbench/frontend/src/views/PaperDetailView.vue`
 - Create: `workbench/frontend/src/views/PapersView.test.ts`
 
-- [ ] **Step 1: Write a filtered-list interaction test**
+- [x] **Step 1: Write a filtered-list interaction test**
 
 ```typescript
 it("loads papers with the selected mapping status", async () => {
@@ -484,25 +484,25 @@ it("loads papers with the selected mapping status", async () => {
 })
 ```
 
-- [ ] **Step 2: Run the page test and confirm failure**
+- [x] **Step 2: Run the page test and confirm failure**
 
 Run: `pnpm.cmd --dir workbench/frontend test --run src/views/PapersView.test.ts`
 
 Expected: FAIL because real page controls are absent.
 
-- [ ] **Step 3: Implement typed API helpers**
+- [x] **Step 3: Implement typed API helpers**
 
 Add `getDashboard`, `getPapers`, and `getPaper`. Convert non-2xx responses into `ApiError` with the backend message; views show retry actions rather than raw exceptions.
 
-- [ ] **Step 4: Implement dashboard**
+- [x] **Step 4: Implement dashboard**
 
 Show asset totals, mapping/analysis funnels, active task, latest import and recent actionable errors. Distinguish historical cumulative totals from current-run changes.
 
-- [ ] **Step 5: Implement paper list and detail**
+- [x] **Step 5: Implement paper list and detail**
 
 The list provides debounced search, conference/year/topic/status filters, Likes/title/update sorting and pagination. The detail page separates factual metadata, mapping evidence, machine analysis, question answers, influence signals, document state and provenance.
 
-- [ ] **Step 6: Run focused frontend checks**
+- [x] **Step 6: Run focused frontend checks**
 
 Run:
 
@@ -514,7 +514,7 @@ pnpm.cmd --dir workbench/frontend build
 
 Expected: all exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add workbench/frontend
