@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: workbench
+      POSTGRES_USER: workbench
+      POSTGRES_PASSWORD: workbench
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - research-workbench-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workbench -d workbench"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  research-workbench-postgres:
+

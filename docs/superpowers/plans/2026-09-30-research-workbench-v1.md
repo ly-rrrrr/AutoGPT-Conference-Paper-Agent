@@ -83,7 +83,7 @@ workbench/
 - Create: `workbench/backend/app/main.py`
 - Create: `workbench/backend/tests/test_health.py`
 
-- [ ] **Step 1: Write the failing health test**
+- [x] **Step 1: Write the failing health test**
 
 ```python
 from fastapi.testclient import TestClient
@@ -98,13 +98,13 @@ def test_health_reports_database_state(monkeypatch):
     assert response.json() == {"status": "ok", "database": "ready"}
 ```
 
-- [ ] **Step 2: Run the test and confirm the missing application failure**
+- [x] **Step 2: Run the test and confirm the missing application failure**
 
 Run: `python -m pytest workbench/backend/tests/test_health.py -q`
 
 Expected: FAIL because `app.main` does not exist.
 
-- [ ] **Step 3: Add backend packaging and settings**
+- [x] **Step 3: Add backend packaging and settings**
 
 `workbench/backend/pyproject.toml` defines a `research-workbench` project with FastAPI, Uvicorn, SQLAlchemy, Alembic, psycopg binary, pydantic-settings, pytest and HTTPX. `config.py` defines:
 
@@ -117,7 +117,7 @@ class Settings(BaseSettings):
 
 Use `SettingsConfigDict(env_prefix="WORKBENCH_", env_file=".env")` and cache `get_settings()`.
 
-- [ ] **Step 4: Add database health and FastAPI composition**
+- [x] **Step 4: Add database health and FastAPI composition**
 
 `database.py` exposes `get_engine()`, `session_scope()` and `database_ready()`; the health check runs `SELECT 1` and returns `False` on `SQLAlchemyError`. `main.py` exposes:
 
@@ -136,17 +136,17 @@ def create_app() -> FastAPI:
 app = create_app()
 ```
 
-- [ ] **Step 5: Add PostgreSQL Compose service**
+- [x] **Step 5: Add PostgreSQL Compose service**
 
 Use PostgreSQL 16, port `55432`, database/user/password `workbench`, a named volume, and a `pg_isready` healthcheck. Do not publish or commit user credentials; `.env.example` contains only the local development URL and source-root example.
 
-- [ ] **Step 6: Run the focused backend test**
+- [x] **Step 6: Run the focused backend test**
 
 Run: `python -m pytest workbench/backend/tests/test_health.py -q`
 
 Expected: `1 passed`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add workbench
@@ -672,4 +672,3 @@ git add workbench README.md docs/科研工作台操作指南.md 启动科研工�
 git commit -m "feat(workbench): deliver local research workbench v1"
 git push origin feat/eccv-arxiv-mapping
 ```
-
