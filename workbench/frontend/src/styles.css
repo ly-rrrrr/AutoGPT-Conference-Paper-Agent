@@ -134,6 +134,17 @@ a { color: inherit; }
 .button-stack { display: grid; min-width: 210px; gap: 8px; }
 .button-stack button { width: 100%; margin: 0; }
 .config-cell { max-width: 320px; color: var(--muted); font-size: 10px !important; word-break: break-word; }
+.preferences-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+.inline-form { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; margin-top: 18px; }
+.inline-form input, .inline-form select { min-height: 42px; padding: 0 11px; border: 1px solid var(--line); background: white; }
+.inline-form .primary-button { margin: 0; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.interest-chip { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px 9px; border: 1px solid var(--line); background: #f4f4ee; }
+.interest-chip small { color: var(--green); }
+.interest-chip button { display: grid; place-items: center; padding: 0; border: 0; color: var(--muted); background: transparent; }
+.weight-row { display: grid; grid-template-columns: 130px 1fr 42px; gap: 12px; align-items: center; padding: 11px 0; color: var(--muted); font-size: 12px; }
+.weight-row input { accent-color: var(--green); }
+.recent-panel { margin-top: 18px; }
 
 @media (max-width: 900px) {
   .app-shell { display: block; }
@@ -149,6 +160,7 @@ a { color: inherit; }
   .detail-hero { display: block; }
   .detail-actions { margin-top: 20px; }
   .operations-grid { grid-template-columns: 1fr; }
+  .preferences-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -157,4 +169,5 @@ a { color: inherit; }
   .hero-row { display: block; }
   .mapping-control { display: block; }
   .button-stack { margin-top: 20px; }
+  .inline-form { grid-template-columns: 1fr; }
 }

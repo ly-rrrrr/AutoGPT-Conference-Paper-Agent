@@ -34,6 +34,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const payload = await response.json().catch(() => ({}))
     throw new ApiError(payload.detail ?? `请求失败（${response.status}）`, response.status)
   }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -67,3 +68,15 @@ export function stopAnalysis() { return api<PipelineAction>("/api/pipelines/anal
 export function startMapping(retryUnresolved: boolean) { return api<PipelineAction>("/api/pipelines/mapping/start", { method: "POST", body: JSON.stringify({ retry_unresolved: retryUnresolved }) }) }
 export function stopMapping() { return api<PipelineAction>("/api/pipelines/mapping/stop", { method: "POST" }) }
 export function getRuns() { return api<{ items: PipelineRun[]; total: number }>("/api/runs") }
+
+export interface PreferenceItem { id: string; kind: string; value: string; weight: number }
+export interface Preferences {
+  interests: PreferenceItem[]; keywords: PreferenceItem[]; weights: Record<string, number>
+  recent_works: Array<{ id: string; title: string; abstract: string | null; arxiv_id: string | null; notes: string | null }>
+}
+export interface DocumentRecord { paper_id: string; title: string; status: string; kind: string; path: string | null; parser: string | null; parser_version: string | null; last_error: string | null }
+export function getPreferences() { return api<Preferences>("/api/preferences") }
+export function addInterest(kind: "interest" | "keyword", value: string, weight = 1) { return api<PreferenceItem>("/api/preferences/interests", { method: "POST", body: JSON.stringify({ kind, value, weight }) }) }
+export function deleteInterest(id: string) { return api<void>(`/api/preferences/interests/${id}`, { method: "DELETE" }) }
+export function updateWeights(weights: Record<string, number>) { return api<Record<string, number>>("/api/preferences/weights", { method: "PUT", body: JSON.stringify(weights) }) }
+export function getDocuments() { return api<{ summary: Record<string, number>; total: number; items: DocumentRecord[] }>("/api/knowledge/documents") }

@@ -4,6 +4,8 @@ from app.api.dashboard import router as dashboard_router
 from app.api.imports import router as imports_router
 from app.api.papers import router as papers_router
 from app.api.pipelines import router as pipelines_router
+from app.api.preferences import router as preferences_router
+from app.api.knowledge import router as knowledge_router
 from app.api.runs import router as runs_router
 from app.database import database_ready
 
@@ -15,6 +17,8 @@ def create_app() -> FastAPI:
     app.include_router(papers_router)
     app.include_router(pipelines_router)
     app.include_router(runs_router)
+    app.include_router(preferences_router)
+    app.include_router(knowledge_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

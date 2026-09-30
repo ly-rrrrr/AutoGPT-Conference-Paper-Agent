@@ -579,7 +579,7 @@ Commit: `feat(workbench): add pipeline operations pages`.
 - Modify: `workbench/frontend/src/views/KnowledgeView.vue`
 - Modify: `workbench/frontend/src/views/PapersView.vue`
 
-- [ ] **Step 1: Write an explainable-score test**
+- [x] **Step 1: Write an explainable-score test**
 
 ```python
 def test_score_exposes_each_component():
@@ -588,23 +588,23 @@ def test_score_exposes_each_component():
     assert set(score.components) == {"recent_work", "interest", "keyword", "impact", "freshness"}
 ```
 
-- [ ] **Step 2: Implement preference CRUD and scoring**
+- [x] **Step 2: Implement preference CRUD and scoring**
 
 Persist interests, recent-work records, keywords and five normalized weights. Reject weights outside 0–1. Return total score plus all component scores; never store the total as an unexplained permanent field.
 
-- [ ] **Step 3: Implement favorites and tags**
+- [x] **Step 3: Implement favorites and tags**
 
 Add explicit create/delete routes with unique constraints. These user records never overwrite imported paper or analysis fields.
 
-- [ ] **Step 4: Implement document state API and page**
+- [x] **Step 4: Implement document state API and page**
 
 Expose `MISSING`, `AVAILABLE`, `PARSED`, and `FAILED`, with path, parser, parser version, checksum and last error. V1 does not upload, parse or embed documents.
 
-- [ ] **Step 5: Implement preferences and knowledge views**
+- [x] **Step 5: Implement preferences and knowledge views**
 
 Preferences edit the explainable inputs and show a live scoring explanation. Knowledge lists document status and clearly labels unavailable V1 actions rather than presenting nonfunctional controls.
 
-- [ ] **Step 6: Run focused tests and commit**
+- [x] **Step 6: Run focused tests and commit**
 
 Run:
 
