@@ -104,7 +104,12 @@ class PipelineController:
         self._lock = Lock()
 
     def status(self) -> dict:
-        result = self.backend.request("status")
+        analysis_error = None
+        try:
+            result = self.backend.request("status")
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            result = {"runs": []}
+            analysis_error = "AutoGPT 服务未连接"
         runs = [
             {**run, "status": STATE_MAP.get(str(run.get("status")), "FAILED")}
             for run in result.get("runs", [])
@@ -114,6 +119,7 @@ class PipelineController:
         )
         return {
             "analysis_runs": runs,
+            "analysis_error": analysis_error,
             "mapping": {
                 "status": "RUNNING" if mapping_running else "IDLE",
                 "exit_code": (

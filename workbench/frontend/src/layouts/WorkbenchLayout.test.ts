@@ -8,7 +8,7 @@ describe("WorkbenchLayout", () => {
   it("groups secondary pages under first-level modules", async () => {
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: "/", component: { template: "<p>页面</p>" } }],
+      routes: [{ path: "/:pathMatch(.*)*", component: { template: "<p>页面</p>" } }],
     })
     await router.push("/")
     await router.isReady()

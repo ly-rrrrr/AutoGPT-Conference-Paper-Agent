@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.dashboard import router as dashboard_router
 from app.api.imports import router as imports_router
@@ -8,6 +10,7 @@ from app.api.preferences import router as preferences_router
 from app.api.knowledge import router as knowledge_router
 from app.api.runs import router as runs_router
 from app.database import database_ready
+from app.config import get_settings
 
 
 def create_app() -> FastAPI:
@@ -27,6 +30,23 @@ def create_app() -> FastAPI:
             "status": "ok" if ready else "degraded",
             "database": "ready" if ready else "unavailable",
         }
+
+    frontend = get_settings().frontend_dist
+    assets = frontend / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def frontend_route(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API 不存在")
+        index = frontend / "index.html"
+        if not index.is_file():
+            raise HTTPException(
+                status_code=503,
+                detail="工作台网页尚未构建，请运行 启动科研工作台.cmd",
+            )
+        return FileResponse(index)
 
     return app
 

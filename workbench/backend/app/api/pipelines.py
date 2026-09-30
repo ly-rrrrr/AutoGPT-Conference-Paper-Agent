@@ -97,6 +97,8 @@ def start_analysis(
         result = controller.start_analysis(AnalysisStart(**payload.model_dump()))
     except PipelineConflictError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail="AutoGPT 服务未连接") from error
     run = _record_start(session, result)
     return {**result, "id": str(run.id)}
 
@@ -105,7 +107,10 @@ def start_analysis(
 def stop_analysis(
     controller: PipelineController = Depends(get_pipeline_controller),
 ) -> dict:
-    return controller.stop_analysis()
+    try:
+        return controller.stop_analysis()
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail="AutoGPT 服务未连接") from error
 
 
 @router.post("/mapping/start", status_code=202, dependencies=[Depends(require_local_action)])

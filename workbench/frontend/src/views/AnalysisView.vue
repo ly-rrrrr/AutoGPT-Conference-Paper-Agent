@@ -39,7 +39,7 @@ onMounted(refresh)
         <label><span>本轮最多新增分析</span><input v-model.number="config.max_new_analyses_per_run" type="number" min="0" max="10000" /><small>设为 0 时只处理已有断点和 Likes，不新增论文分析。</small></label>
         <button class="primary-button" type="submit" :disabled="busy"><PhPlay weight="fill" /> {{ busy ? "处理中…" : "确认并启动分析" }}</button>
       </form>
-      <article class="panel"><div class="panel__heading"><div><p class="page-kicker">CURRENT STATE</p><h3>AutoGPT 执行状态</h3></div><button class="quiet-button" @click="refresh">刷新</button></div><div v-if="status?.analysis_runs.length" class="run-stack"><div v-for="run in status.analysis_runs" :key="run.id"><span class="mono">{{ run.id }}</span><StatusBadge :status="run.status" /></div></div><p v-else class="empty-state">当前没有执行记录，或 AutoGPT 服务尚未启动。</p><button class="danger-button" type="button" :disabled="busy" @click="stop"><PhStop weight="fill" /> 停止活动任务</button></article>
+      <article class="panel"><div class="panel__heading"><div><p class="page-kicker">CURRENT STATE</p><h3>AutoGPT 执行状态</h3></div><button class="quiet-button" @click="refresh">刷新</button></div><div v-if="status?.analysis_runs.length" class="run-stack"><div v-for="run in status.analysis_runs" :key="run.id"><span class="mono">{{ run.id }}</span><StatusBadge :status="run.status" /></div></div><p v-else class="empty-state">{{ status?.analysis_error || "当前没有活动执行记录。" }}</p><button class="danger-button" type="button" :disabled="busy" @click="stop"><PhStop weight="fill" /> 停止活动任务</button></article>
     </div>
   </section>
 </template>

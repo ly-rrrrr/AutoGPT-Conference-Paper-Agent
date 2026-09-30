@@ -23,6 +23,11 @@ class FakeBackend:
         raise AssertionError(action)
 
 
+class UnavailableBackend:
+    def request(self, action: str, config: dict | None = None) -> dict:
+        raise RuntimeError("rest_server is not running")
+
+
 @pytest.fixture
 def fake_backend():
     return FakeBackend()
@@ -107,3 +112,18 @@ def test_runs_endpoint_returns_stored_history(client, api_session):
     assert response.status_code == 200
     assert response.json()["items"][0]["run_key"] == "eccv-2026"
     assert response.json()["items"][0]["status"] == "COMPLETED"
+
+
+def test_pipeline_status_degrades_when_autogpt_is_unavailable(tmp_path):
+    controller = PipelineController(
+        repository_root=tmp_path,
+        platform_root=tmp_path,
+        data_root=tmp_path / "data",
+        backend=UnavailableBackend(),
+    )
+
+    status = controller.status()
+
+    assert status["mapping"]["status"] == "IDLE"
+    assert status["analysis_runs"] == []
+    assert status["analysis_error"] == "AutoGPT 服务未连接"

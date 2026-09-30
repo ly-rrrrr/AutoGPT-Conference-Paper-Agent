@@ -48,6 +48,7 @@ export function getPaper(id: string) { return api<PaperDetail>(`/api/papers/${id
 
 export interface PipelineStatus {
   analysis_runs: Array<{ id: string; status: string }>
+  analysis_error?: string | null
   mapping: { status: string; exit_code: number | null }
 }
 export interface AnalysisConfig {

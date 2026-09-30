@@ -1,7 +1,5 @@
-from collections import Counter
-
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_session
@@ -20,10 +18,8 @@ def documents(limit: int = Query(100, ge=1, le=500), session: Session = Depends(
         .limit(limit)
     ).all()
     items = []
-    counts: Counter[str] = Counter()
     for paper, document in rows:
         status = document.status if document else "MISSING"
-        counts[status] += 1
         items.append(
             {
                 "paper_id": str(paper.id),
@@ -37,6 +33,15 @@ def documents(limit: int = Query(100, ge=1, le=500), session: Session = Depends(
                 "last_error": document.last_error if document else None,
             }
         )
-    total = session.query(Paper).count()
-    counts["MISSING"] += max(total - len(rows), 0)
-    return {"summary": dict(counts), "total": total, "items": items}
+    total = session.scalar(select(func.count(Paper.id))) or 0
+    summary = {
+        str(status): count
+        for status, count in session.execute(
+            select(DocumentAsset.status, func.count(DocumentAsset.id)).group_by(
+                DocumentAsset.status
+            )
+        )
+    }
+    documented = session.scalar(select(func.count(func.distinct(DocumentAsset.paper_id)))) or 0
+    summary["MISSING"] = summary.get("MISSING", 0) + total - documented
+    return {"summary": summary, "total": total, "items": items}

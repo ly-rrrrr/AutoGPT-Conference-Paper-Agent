@@ -628,7 +628,7 @@ Commit: `feat(workbench): add explainable research preferences`.
 - Create: `docs/科研工作台操作指南.md`
 - Create: `workbench/backend/tests/test_startup.py`
 
-- [ ] **Step 1: Write startup decision tests**
+- [x] **Step 1: Write startup decision tests**
 
 ```python
 def test_startup_reuses_healthy_database(fake_commands):
@@ -638,19 +638,19 @@ def test_startup_reuses_healthy_database(fake_commands):
     assert actions == ["migrate", "sync", "serve"]
 ```
 
-- [ ] **Step 2: Implement production frontend serving**
+- [x] **Step 2: Implement production frontend serving**
 
 FastAPI serves `frontend/dist` only when it exists, keeps `/api/*` authoritative, and returns `index.html` for known Vue routes. Missing frontend assets produce an actionable startup error instead of an API 404 loop.
 
-- [ ] **Step 3: Implement start script**
+- [x] **Step 3: Implement start script**
 
 The script checks Python, Node/pnpm only when a frontend build is missing, and Docker. It starts the workbench database, runs Alembic, builds the frontend if needed, performs an idempotent sync, starts Uvicorn on `127.0.0.1:8767`, and opens the browser. Existing healthy services are reused.
 
-- [ ] **Step 4: Add Windows launcher and guide**
+- [x] **Step 4: Add Windows launcher and guide**
 
 The `.cmd` sets UTF-8, changes to the repository directory, runs `python workbench\scripts\start.py`, and pauses on exit. The guide covers normal operation, data locations, recovery and the distinction between workbench data sync and paid analysis.
 
-- [ ] **Step 5: Run risk-proportionate verification**
+- [x] **Step 5: Run risk-proportionate verification**
 
 Run:
 
@@ -665,7 +665,7 @@ git diff --check
 
 Then perform one no-cost smoke path: start the workbench, sync existing data, open dashboard, search a known paper, open its detail and inspect current task status. Do not start mapping or analysis during verification.
 
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
 
 ```bash
 git add workbench README.md docs/科研工作台操作指南.md 启动科研工作台.cmd
