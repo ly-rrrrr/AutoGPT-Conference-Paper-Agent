@@ -163,7 +163,7 @@ git commit -m "feat(workbench): add backend health foundation"
 - Create: `workbench/backend/migrations/versions/0001_workbench_v1.py`
 - Create: `workbench/backend/tests/test_models.py`
 
-- [ ] **Step 1: Write model contract tests**
+- [x] **Step 1: Write model contract tests**
 
 ```python
 def test_paper_business_key_is_unique():
@@ -177,13 +177,13 @@ def test_machine_and_user_records_are_separate():
     assert "paper_tags" in Base.metadata.tables
 ```
 
-- [ ] **Step 2: Run the model test and observe the missing model failure**
+- [x] **Step 2: Run the model test and observe the missing model failure**
 
 Run: `python -m pytest workbench/backend/tests/test_models.py -q`
 
 Expected: FAIL importing `app.models`.
 
-- [ ] **Step 3: Define focused V1 models**
+- [x] **Step 3: Define focused V1 models**
 
 Implement SQLAlchemy 2 declarative models for `ConferenceEdition`, `Paper`, `PaperAuthor`, `PaperMapping`, `MappingCandidate`, `MappingAttempt`, `PaperAnalysis`, `PaperAnswer`, `ImpactSignal`, `PipelineRun`, `PipelineEvent`, `ImportBatch`, `DocumentAsset`, `UserInterest`, `RecentWork`, `Tag`, `PaperTag`, and `Favorite`.
 
@@ -196,11 +196,11 @@ UniqueConstraint("paper_id", "analysis_mode", "question_set_hash", name="uq_pape
 UniqueConstraint("source_path", "sha256", name="uq_import_source_hash")
 ```
 
-- [ ] **Step 4: Add an explicit initial migration**
+- [x] **Step 4: Add an explicit initial migration**
 
 The migration creates exactly the V1 tables and indexes from the metadata. It must not inspect or modify the AutoGPT database. Downgrade drops only workbench-owned tables in reverse dependency order.
 
-- [ ] **Step 5: Run model tests and migration smoke check**
+- [x] **Step 5: Run model tests and migration smoke check**
 
 Run:
 
@@ -213,7 +213,7 @@ python -m alembic -c workbench/backend/alembic.ini current
 
 Expected: tests pass and Alembic reports `0001_workbench_v1 (head)`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add workbench/backend
