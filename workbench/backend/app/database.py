@@ -27,6 +27,11 @@ def session_scope() -> Iterator[Session]:
         session.close()
 
 
+def get_session() -> Iterator[Session]:
+    with session_scope() as session:
+        yield session
+
+
 def database_ready() -> bool:
     try:
         with get_engine().connect() as connection:
@@ -34,4 +39,3 @@ def database_ready() -> bool:
         return True
     except (OSError, SQLAlchemyError):
         return False
-

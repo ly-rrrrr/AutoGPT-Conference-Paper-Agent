@@ -1,12 +1,16 @@
 from fastapi import FastAPI
 
+from app.api.dashboard import router as dashboard_router
 from app.api.imports import router as imports_router
+from app.api.papers import router as papers_router
 from app.database import database_ready
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="科研工作台", version="0.1.0")
+    app.include_router(dashboard_router)
     app.include_router(imports_router)
+    app.include_router(papers_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

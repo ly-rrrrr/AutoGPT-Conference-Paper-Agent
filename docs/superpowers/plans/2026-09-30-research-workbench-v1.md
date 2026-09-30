@@ -300,7 +300,7 @@ git commit -m "feat(workbench): import existing paper assets"
 - Create: `workbench/backend/tests/test_papers_api.py`
 - Modify: `workbench/backend/app/main.py`
 
-- [ ] **Step 1: Write API behavior tests**
+- [x] **Step 1: Write API behavior tests**
 
 ```python
 def test_papers_support_search_and_status_filter(client, seeded_db):
@@ -317,27 +317,27 @@ def test_dashboard_separates_total_and_completed_counts(client, seeded_db):
     assert data["analyses"]["success"] == 1
 ```
 
-- [ ] **Step 2: Run and observe 404 failures**
+- [x] **Step 2: Run and observe 404 failures**
 
 Run: `python -m pytest workbench/backend/tests/test_dashboard_api.py workbench/backend/tests/test_papers_api.py -q`
 
 Expected: FAIL with 404 for missing routes.
 
-- [ ] **Step 3: Implement query schemas and routes**
+- [x] **Step 3: Implement query schemas and routes**
 
 `GET /api/papers` supports `query`, `conference`, `year`, `topic`, `mapping_status`, `analysis_status`, `sort`, `page`, and `page_size`. Allowed sorts are `updated_at`, `title`, `likes`; page size is 1–100. `GET /api/papers/{id}` returns metadata, authors, mapping evidence, latest compatible analysis, answers, Likes, document state and source/version fields.
 
-- [ ] **Step 4: Implement dashboard aggregation**
+- [x] **Step 4: Implement dashboard aggregation**
 
 Return totals by conference, mapping status, analysis status and document status; current active runs; five recent errors; and last import time. Use grouped SQL queries rather than reading JSONL in request handlers.
 
-- [ ] **Step 5: Register routers and run focused tests**
+- [x] **Step 5: Register routers and run focused tests**
 
 Run: `python -m pytest workbench/backend/tests/test_dashboard_api.py workbench/backend/tests/test_papers_api.py -q`
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add workbench/backend
