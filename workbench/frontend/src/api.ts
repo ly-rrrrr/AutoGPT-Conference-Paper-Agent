@@ -44,3 +44,26 @@ export function getPapers(filters: PaperFilters = {}) {
   return api<PaginatedPapers>(`/api/papers?${params}`)
 }
 export function getPaper(id: string) { return api<PaperDetail>(`/api/papers/${id}`) }
+
+export interface PipelineStatus {
+  analysis_runs: Array<{ id: string; status: string }>
+  mapping: { status: string; exit_code: number | null }
+}
+export interface AnalysisConfig {
+  run_id: string
+  analysis_concurrency: number
+  analysis_request_interval_seconds: number
+  max_new_analyses_per_run: number
+}
+export interface PipelineAction { status: string; message: string; id?: string; external_id?: string }
+export interface PipelineRun {
+  id: string; external_id: string | null; run_key: string; pipeline: string; status: string
+  config: Record<string, unknown>; counters: Record<string, unknown>; started_at: string | null; ended_at: string | null; created_at: string
+}
+
+export function getPipelineStatus() { return api<PipelineStatus>("/api/pipelines/status") }
+export function startAnalysis(config: AnalysisConfig) { return api<PipelineAction>("/api/pipelines/analysis/start", { method: "POST", body: JSON.stringify(config) }) }
+export function stopAnalysis() { return api<PipelineAction>("/api/pipelines/analysis/stop", { method: "POST" }) }
+export function startMapping(retryUnresolved: boolean) { return api<PipelineAction>("/api/pipelines/mapping/start", { method: "POST", body: JSON.stringify({ retry_unresolved: retryUnresolved }) }) }
+export function stopMapping() { return api<PipelineAction>("/api/pipelines/mapping/stop", { method: "POST" }) }
+export function getRuns() { return api<{ items: PipelineRun[]; total: number }>("/api/runs") }

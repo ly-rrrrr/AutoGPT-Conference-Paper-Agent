@@ -530,7 +530,7 @@ git commit -m "feat(workbench): add paper exploration pages"
 - Modify: `workbench/frontend/src/views/RunsView.vue`
 - Create: `workbench/frontend/src/views/AnalysisView.test.ts`
 
-- [ ] **Step 1: Write the explicit-start test**
+- [x] **Step 1: Write the explicit-start test**
 
 ```typescript
 it("does not start analysis until the user submits", async () => {
@@ -542,19 +542,19 @@ it("does not start analysis until the user submits", async () => {
 })
 ```
 
-- [ ] **Step 2: Implement mapping operations page**
+- [x] **Step 2: Implement mapping operations page**
 
 Display status counts, process state, last error, candidate/query metrics and start/stop controls. Require a confirmation only when the requested action can trigger external requests.
 
-- [ ] **Step 3: Implement analysis operations page**
+- [x] **Step 3: Implement analysis operations page**
 
 Expose run ID, new-analysis limit, concurrency and interval with the existing safe bounds. Show active run, cumulative completion, current-run change, normalized errors and stop control. Never auto-start analysis on mount or refresh.
 
-- [ ] **Step 4: Implement run history page**
+- [x] **Step 4: Implement run history page**
 
 List runs and expose their config, timestamps, status, result deltas and recent events. Do not render credentials, access tokens or full container logs.
 
-- [ ] **Step 5: Run focused checks and commit**
+- [x] **Step 5: Run focused checks and commit**
 
 Run:
 
