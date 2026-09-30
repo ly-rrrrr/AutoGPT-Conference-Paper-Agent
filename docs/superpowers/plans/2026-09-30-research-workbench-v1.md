@@ -230,7 +230,7 @@ git commit -m "feat(workbench): add research asset schema"
 - Create: `workbench/backend/tests/fixtures/likes-checkpoint.jsonl`
 - Create: `workbench/backend/tests/test_importers.py`
 
-- [ ] **Step 1: Write a two-pass idempotency test**
+- [x] **Step 1: Write a two-pass idempotency test**
 
 ```python
 def test_sync_imports_each_asset_once(session, fixture_data):
@@ -243,25 +243,25 @@ def test_sync_imports_each_asset_once(session, fixture_data):
     assert session.scalar(select(func.count(ImportBatch.id))) == 3
 ```
 
-- [ ] **Step 2: Run the importer test and verify it fails**
+- [x] **Step 2: Run the importer test and verify it fails**
 
 Run: `python -m pytest workbench/backend/tests/test_importers.py -q`
 
 Expected: FAIL because `AssetImporter` is missing.
 
-- [ ] **Step 3: Implement streaming JSONL input and hashes**
+- [x] **Step 3: Implement streaming JSONL input and hashes**
 
 Add `iter_jsonl(path)`, `sha256_file(path)` and normalization helpers. Invalid non-empty JSON lines raise `ImportDataError` containing the filename and line number; errors must not partially commit a batch.
 
-- [ ] **Step 4: Implement mapping import**
+- [x] **Step 4: Implement mapping import**
 
 Read `eccv-2026-mapping/mappings.jsonl`. Upsert the conference edition and paper from the nested `paper` object, then persist mapping status, reason, matcher version, accepted arXiv data, candidates and attempts. Use normalized conference/year/title as the paper business key.
 
-- [ ] **Step 5: Implement analysis and Likes import**
+- [x] **Step 5: Implement analysis and Likes import**
 
 Read each `runs/*/analysis-checkpoint.jsonl` and `likes-checkpoint.jsonl`. Resolve papers by `arxiv_id`, preserve error code/detail, analysis mode, questions and answers, and store Likes as an `ImpactSignal` with source `alphaxiv_likes`. Unknown arXiv IDs are counted as unresolved instead of creating untraceable papers.
 
-- [ ] **Step 6: Add sync endpoint**
+- [x] **Step 6: Add sync endpoint**
 
 `POST /api/imports/sync` runs one synchronous local import in V1 and returns:
 
@@ -277,13 +277,13 @@ Read each `runs/*/analysis-checkpoint.jsonl` and `likes-checkpoint.jsonl`. Resol
 
 Reject a second concurrent sync with HTTP 409.
 
-- [ ] **Step 7: Run importer tests twice**
+- [x] **Step 7: Run importer tests twice**
 
 Run: `python -m pytest workbench/backend/tests/test_importers.py -q`
 
 Expected: all tests pass, including unchanged-file skip and changed-file upsert.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add workbench/backend
