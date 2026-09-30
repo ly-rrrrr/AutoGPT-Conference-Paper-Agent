@@ -354,11 +354,11 @@ git commit -m "feat(workbench): expose dashboard and paper APIs"
 - Modify: `scripts/paper_console.py`
 - Modify: `workbench/backend/app/main.py`
 
-- [ ] **Step 1: Extract a side-effect-free controller boundary**
+- [x] **Step 1: Extract a side-effect-free controller boundary**
 
 Move path discovery, service readiness, mapping start/stop, AutoGPT start/stop and status operations behind a `PipelineController` whose constructor receives platform root, data root and command runner. Importing the module must not start Docker, open a browser or create a server.
 
-- [ ] **Step 2: Write controller tests with a fake command runner**
+- [x] **Step 2: Write controller tests with a fake command runner**
 
 ```python
 def test_analysis_start_refuses_duplicate_active_run(controller, fake_backend):
@@ -367,27 +367,27 @@ def test_analysis_start_refuses_duplicate_active_run(controller, fake_backend):
         controller.start_analysis(AnalysisStart(run_id="eccv-2026", concurrency=1, interval_seconds=4, limit=20))
 ```
 
-- [ ] **Step 3: Run the controller test and confirm failure**
+- [x] **Step 3: Run the controller test and confirm failure**
 
 Run: `python -m pytest workbench/backend/tests/test_pipelines_api.py -q`
 
 Expected: FAIL because the controller boundary is absent.
 
-- [ ] **Step 4: Implement normalized task state**
+- [x] **Step 4: Implement normalized task state**
 
 Expose `IDLE`, `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, and `STOPPED`. Store start/stop/status events in `pipeline_runs` and `pipeline_events`. Never place credentials or full Docker output in an event.
 
-- [ ] **Step 5: Implement local-only endpoints**
+- [x] **Step 5: Implement local-only endpoints**
 
 Add status endpoints and explicit mapping/analysis start and stop endpoints. Preserve Host, Origin and CSRF protection. Starting analysis requires `run_id`, `analysis_concurrency`, `analysis_request_interval_seconds`, and `max_new_analyses_per_run`; it must not happen during health checks or startup.
 
-- [ ] **Step 6: Run focused controller/API tests**
+- [x] **Step 6: Run focused controller/API tests**
 
 Run: `python -m pytest workbench/backend/tests/test_pipelines_api.py tests/test_paper_console.py -q`
 
 Expected: tests pass and existing console behavior remains compatible.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts workbench/backend
