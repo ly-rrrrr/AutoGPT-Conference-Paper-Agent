@@ -410,11 +410,11 @@ git commit -m "feat(workbench): integrate paper pipeline controls"
 - Create: `workbench/frontend/src/views/*.vue`
 - Create: `workbench/frontend/src/layouts/WorkbenchLayout.test.ts`
 
-- [ ] **Step 1: Scaffold package scripts and test environment**
+- [x] **Step 1: Scaffold package scripts and test environment**
 
 Define `dev`, `build`, `test`, and `typecheck` scripts with Vue 3, Vue Router, Vite, TypeScript, Vitest, Vue Test Utils and jsdom.
 
-- [ ] **Step 2: Write the navigation test**
+- [x] **Step 2: Write the navigation test**
 
 ```typescript
 it("groups secondary pages under first-level modules", () => {
@@ -427,21 +427,21 @@ it("groups secondary pages under first-level modules", () => {
 })
 ```
 
-- [ ] **Step 3: Run the frontend test and confirm failure**
+- [x] **Step 3: Run the frontend test and confirm failure**
 
 Run: `pnpm.cmd --dir workbench/frontend test --run`
 
 Expected: FAIL because the layout is missing.
 
-- [ ] **Step 4: Implement the application shell**
+- [x] **Step 4: Implement the application shell**
 
 Build a fixed left sidebar with collapsible first-level modules, secondary route links, a compact system-health area and a right content outlet. Use semantic HTML, CSS variables and responsive behavior that collapses the sidebar below 900px. Do not add a UI framework in V1.
 
-- [ ] **Step 5: Define routes**
+- [x] **Step 5: Define routes**
 
 Map `/`, `/papers`, `/papers/:id`, `/pipelines/mapping`, `/pipelines/analysis`, `/runs`, `/knowledge`, and `/preferences`. Placeholder views contain only the route heading until their task implements real content.
 
-- [ ] **Step 6: Run test, typecheck and build**
+- [x] **Step 6: Run test, typecheck and build**
 
 Run:
 
@@ -453,7 +453,7 @@ pnpm.cmd --dir workbench/frontend build
 
 Expected: all exit 0 and `workbench/frontend/dist` exists.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add workbench/frontend

@@ -1,0 +1,27 @@
+{
+  "name": "research-workbench-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "test": "vitest",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@phosphor-icons/vue": "^2.2.1",
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.1"
+  }
+}
