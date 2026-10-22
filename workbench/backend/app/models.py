@@ -401,3 +401,102 @@ class RelatedWorkEvidence(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(40), default="MACHINE", index=True)
     source_path: Mapped[str] = mapped_column(Text)
     source_sha256: Mapped[str] = mapped_column(String(64), index=True)
+
+
+class ResearchBrief(Base, TimestampMixin):
+    __tablename__ = "research_briefs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(Text)
+    objective: Mapped[str] = mapped_column(Text)
+    scope: Mapped[dict] = mapped_column(JSON, default=dict)
+    tool_policy: Mapped[dict] = mapped_column(JSON, default=dict)
+    budget: Mapped[dict] = mapped_column(JSON, default=dict)
+    output_preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="DRAFT", index=True)
+
+
+class ResearchArtifact(Base, TimestampMixin):
+    __tablename__ = "research_artifacts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_brief_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_briefs.id", ondelete="CASCADE"), index=True
+    )
+    workflow_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True
+    )
+    supersedes_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_artifacts.id", ondelete="SET NULL"), index=True
+    )
+    artifact_type: Mapped[str] = mapped_column(String(80), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="CANDIDATE", index=True)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    narrative: Mapped[str | None] = mapped_column(Text)
+    generator: Mapped[str] = mapped_column(String(120))
+    generator_version: Mapped[str] = mapped_column(String(80))
+    configuration: Mapped[dict] = mapped_column(JSON, default=dict)
+    uncertainty: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ResearchArtifactDependency(Base):
+    __tablename__ = "research_artifact_dependencies"
+    __table_args__ = (
+        UniqueConstraint(
+            "parent_artifact_id",
+            "child_artifact_id",
+            "relation",
+            name="uq_research_artifact_dependency",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    parent_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    child_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    relation: Mapped[str] = mapped_column(String(40), default="DERIVED_FROM")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ResearchEvidenceRef(Base, TimestampMixin):
+    __tablename__ = "research_evidence_refs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    paper_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("papers.id", ondelete="SET NULL"), index=True
+    )
+    document_asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("document_assets.id", ondelete="SET NULL"), index=True
+    )
+    source_kind: Mapped[str] = mapped_column(String(60), index=True)
+    source_uri: Mapped[str] = mapped_column(Text)
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    section_title: Mapped[str | None] = mapped_column(Text)
+    quote: Mapped[str | None] = mapped_column(Text)
+    locator: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), index=True)
+    stance: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class InsightProposal(Base, TimestampMixin):
+    __tablename__ = "insight_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_artifacts.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    title: Mapped[str] = mapped_column(Text)
+    statement: Mapped[str] = mapped_column(Text)
+    why_it_matters: Mapped[str] = mapped_column(Text)
+    epistemic_status: Mapped[str] = mapped_column(String(40), index=True)
+    scope: Mapped[dict] = mapped_column(JSON, default=dict)
+    counterarguments: Mapped[list] = mapped_column(JSON, default=list)
+    open_questions: Mapped[list] = mapped_column(JSON, default=list)
+    suggested_view: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="CANDIDATE", index=True)

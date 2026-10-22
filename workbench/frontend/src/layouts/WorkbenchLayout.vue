@@ -12,6 +12,7 @@ import {
   PhList,
   PhMagnifyingGlass,
   PhPulse,
+  PhStrategy,
   PhSparkle,
 } from "@phosphor-icons/vue"
 import { computed, ref } from "vue"
@@ -34,6 +35,11 @@ const sections = [
       { label: "相关工作谱系", to: "/lineage", icon: PhGitBranch },
       { label: "运行记录", to: "/runs", icon: PhList },
     ],
+  },
+  {
+    label: "方法认知",
+    icon: PhStrategy,
+    items: [{ label: "研究任务", to: "/research", icon: PhSparkle }],
   },
   {
     label: "采集与分析",

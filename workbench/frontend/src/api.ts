@@ -153,3 +153,105 @@ export function startLineageExtraction(id: string) {
     { method: "POST" },
   )
 }
+
+export type ResearchEpistemicStatus = "OBSERVED" | "AUTHOR_CLAIM" | "INFERRED" | "SYNTHESIZED"
+export type ResearchEvidenceStance = "SUPPORTS" | "CHALLENGES" | "CONTEXT"
+
+export interface ResearchBrief {
+  id: string
+  title: string
+  objective: string
+  scope: Record<string, unknown>
+  tool_policy: Record<string, unknown>
+  budget: Record<string, unknown>
+  output_preferences: Record<string, unknown>
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ResearchArtifact {
+  id: string
+  brief_id: string
+  workflow_run_id: string | null
+  supersedes_artifact_id: string | null
+  artifact_type: string
+  status: string
+  content: Record<string, unknown>
+  narrative: string | null
+  generator: string
+  generator_version: string
+  configuration: Record<string, unknown>
+  uncertainty: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ResearchEvidence {
+  id: string
+  artifact_id: string
+  paper_id: string | null
+  document_asset_id: string | null
+  source_kind: string
+  source_uri: string
+  page_number: number | null
+  section_title: string | null
+  quote: string | null
+  locator: Record<string, unknown>
+  source_sha256: string | null
+  stance: ResearchEvidenceStance
+}
+
+export interface ResearchInsight {
+  id: string
+  artifact_id: string
+  title: string
+  statement: string
+  why_it_matters: string
+  epistemic_status: ResearchEpistemicStatus
+  scope: Record<string, unknown>
+  counterarguments: unknown[]
+  open_questions: unknown[]
+  suggested_view: Record<string, unknown>
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ResearchBriefDetail extends ResearchBrief {
+  artifacts: ResearchArtifact[]
+  evidence: ResearchEvidence[]
+  insights: ResearchInsight[]
+  dependencies: Array<{ parent_artifact_id: string; child_artifact_id: string; relation: string }>
+}
+
+export interface ResearchBriefInput {
+  title: string
+  objective: string
+  scope: Record<string, unknown>
+  tool_policy: Record<string, unknown>
+  budget: Record<string, unknown>
+  output_preferences: Record<string, unknown>
+}
+
+export interface ResearchRuntimeStatus {
+  ready: boolean
+  control_plane: { name: string; status: string; detail: string }
+  components: Array<{ id: string; name: string; status: string; detail: string }>
+}
+
+export function getResearchBriefs() {
+  return api<{ items: ResearchBrief[]; total: number }>("/api/research/briefs")
+}
+
+export function getResearchBrief(id: string) {
+  return api<ResearchBriefDetail>(`/api/research/briefs/${id}`)
+}
+
+export function createResearchBrief(payload: ResearchBriefInput) {
+  return api<ResearchBrief>("/api/research/briefs", { method: "POST", body: JSON.stringify(payload) })
+}
+
+export function getResearchRuntime() {
+  return api<ResearchRuntimeStatus>("/api/research/runtime")
+}

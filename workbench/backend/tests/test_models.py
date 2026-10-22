@@ -1,7 +1,7 @@
-from app.models import Base, Paper, PaperAnalysis, PaperMapping
+from app.models import Base, Paper, PaperAnalysis, PaperMapping, ResearchArtifactDependency
 
 
-def test_v1_schema_contains_each_bounded_domain():
+def test_schema_contains_each_bounded_domain():
     assert set(Base.metadata.tables) == {
         "conference_editions",
         "papers",
@@ -24,6 +24,11 @@ def test_v1_schema_contains_each_bounded_domain():
         "reference_works",
         "paper_references",
         "related_work_evidence",
+        "research_briefs",
+        "research_artifacts",
+        "research_artifact_dependencies",
+        "research_evidence_refs",
+        "insight_proposals",
     }
 
 
@@ -39,6 +44,10 @@ def test_machine_results_are_versioned():
 
     assert "uq_paper_mapping_version" in mapping_constraints
     assert "uq_paper_analysis_version" in analysis_constraints
+    artifact_constraints = {
+        item.name for item in ResearchArtifactDependency.__table__.constraints
+    }
+    assert "uq_research_artifact_dependency" in artifact_constraints
 
 
 def test_machine_and_user_records_are_separate():

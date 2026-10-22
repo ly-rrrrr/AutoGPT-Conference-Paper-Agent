@@ -7,6 +7,7 @@ from app.api.imports import router as imports_router
 from app.api.papers import router as papers_router
 from app.api.pipelines import router as pipelines_router
 from app.api.preferences import router as preferences_router
+from app.api.research import router as research_router
 from app.api.knowledge import router as knowledge_router
 from app.api.lineage import router as lineage_router
 from app.api.runs import router as runs_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(preferences_router)
     app.include_router(knowledge_router)
     app.include_router(lineage_router)
+    app.include_router(research_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

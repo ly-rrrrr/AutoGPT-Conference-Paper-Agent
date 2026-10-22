@@ -8,6 +8,7 @@ import MappingView from "./views/MappingView.vue"
 import PaperDetailView from "./views/PaperDetailView.vue"
 import PapersView from "./views/PapersView.vue"
 import PreferencesView from "./views/PreferencesView.vue"
+import ResearchView from "./views/ResearchView.vue"
 import RunsView from "./views/RunsView.vue"
 
 export default createRouter({
@@ -21,6 +22,7 @@ export default createRouter({
     { path: "/runs", component: RunsView, meta: { title: "运行记录" } },
     { path: "/knowledge", component: KnowledgeView, meta: { title: "知识库" } },
     { path: "/lineage", component: LineageView, meta: { title: "相关工作谱系" } },
+    { path: "/research", component: ResearchView, meta: { title: "研究任务" } },
     { path: "/preferences", component: PreferencesView, meta: { title: "研究偏好" } },
   ],
 })
