@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     )
     source_root: Path = REPOSITORY_ROOT / "data"
     frontend_dist: Path = WORKBENCH_ROOT / "frontend" / "dist"
+    asset_root: Path = WORKBENCH_ROOT / "data"
+    grobid_url: str = "http://127.0.0.1:8070"
+    grobid_timeout_seconds: float = 180
+    max_pdf_bytes: int = 80 * 1024 * 1024
 
 
 @lru_cache

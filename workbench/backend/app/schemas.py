@@ -98,3 +98,78 @@ class PaperQuery(BaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=25, ge=1, le=100)
 
+
+class LineageParserStatus(BaseModel):
+    name: str
+    ready: bool
+
+
+class LineageOverview(BaseModel):
+    papers_with_lineage: int
+    reference_works: int
+    references: int
+    evidence: int
+    relations: dict[str, int]
+    parser: LineageParserStatus
+
+
+class LineagePaperItem(BaseModel):
+    id: UUID
+    title: str
+    conference: str
+    year: int
+    arxiv_id: str | None
+    pdf_url: str | None
+    reference_count: int
+
+
+class LineagePapersResponse(BaseModel):
+    items: list[LineagePaperItem]
+
+
+class LineageNode(BaseModel):
+    id: str
+    kind: str
+    title: str
+    year: int | None
+    venue: str | None
+    arxiv_id: str | None = None
+    doi: str | None = None
+    linked_paper_id: UUID | None = None
+    is_center: bool
+
+
+class LineageEvidenceDetail(BaseModel):
+    context: str
+    section: str | None
+    page: int | None
+    coordinates: list[str]
+    classifier: str
+    classifier_version: str
+    source_path: str
+    source_sha256: str
+    raw_reference: str | None
+
+
+class LineageEdge(BaseModel):
+    id: UUID
+    source: str
+    target: str
+    relation_type: str
+    confidence: float
+    status: str
+    evidence: LineageEvidenceDetail
+
+
+class LineageGraph(BaseModel):
+    center_paper_id: UUID
+    nodes: list[LineageNode]
+    edges: list[LineageEdge]
+    truncated: bool
+
+
+class LineageAction(BaseModel):
+    status: str
+    run_id: UUID
+    message: str
+

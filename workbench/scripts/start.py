@@ -25,6 +25,8 @@ def startup_actions(probe) -> list[str]:
     actions = []
     if not probe.database_running():
         actions.append("compose_up_db")
+    if not probe.grobid_running():
+        actions.append("compose_up_grobid")
     if not probe.frontend_ready():
         actions.append("frontend_build")
     return [*actions, "migrate", "sync", "serve"]
@@ -58,7 +60,24 @@ class LocalProbe:
 
     def frontend_ready(self) -> bool:
         dist = FRONTEND_ROOT / "dist"
-        return (dist / "index.html").is_file() and (dist / "assets").is_dir()
+        index = dist / "index.html"
+        assets = dist / "assets"
+        if not index.is_file() or not assets.is_dir():
+            return False
+        inputs = [FRONTEND_ROOT / "package.json", FRONTEND_ROOT / "pnpm-lock.yaml"]
+        inputs.extend((FRONTEND_ROOT / "src").rglob("*"))
+        newest_input = max(path.stat().st_mtime for path in inputs if path.is_file())
+        return index.stat().st_mtime >= newest_input
+
+    def grobid_running(self) -> bool:
+        try:
+            output = run(
+                ["docker", "compose", "-f", str(COMPOSE_FILE), "ps", "--status", "running", "--services"],
+                WORKBENCH_ROOT,
+            )
+            return "grobid" in output.split()
+        except (OSError, RuntimeError):
+            return False
 
 
 def workbench_is_running() -> bool:
@@ -76,7 +95,7 @@ def ensure_backend() -> None:
         print("[准备] 创建工作台 Python 环境…", flush=True)
         run([sys.executable, "-m", "venv", str(VENV_ROOT)])
     check = subprocess.run(
-        [str(VENV_PYTHON), "-c", "import fastapi, sqlalchemy, uvicorn, alembic, psycopg"],
+        [str(VENV_PYTHON), "-c", "import fastapi, httpx, sqlalchemy, uvicorn, alembic, psycopg"],
         capture_output=True,
     )
     if check.returncode:
@@ -164,6 +183,10 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print("科研工作台启动器 · http://127.0.0.1:8767", flush=True)
     if workbench_is_running():
+        ensure_docker()
+        if not LocalProbe().grobid_running():
+            print("[准备] 启动 GROBID 学术文献解析服务；首次使用需要下载镜像…", flush=True)
+            run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "grobid"], WORKBENCH_ROOT)
         print("工作台已经运行，正在打开浏览器。", flush=True)
         webbrowser.open(URL)
         return 0
@@ -173,16 +196,19 @@ def main() -> int:
     actions = startup_actions(probe)
     env = runtime_env()
     if "compose_up_db" in actions:
-        print("[1/4] 启动 PostgreSQL…", flush=True)
+        print("[1/5] 启动 PostgreSQL…", flush=True)
         run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "db"], WORKBENCH_ROOT)
+    if "compose_up_grobid" in actions:
+        print("[2/5] 启动 GROBID 学术文献解析服务；首次使用需要下载镜像…", flush=True)
+        run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "grobid"], WORKBENCH_ROOT)
     wait_for_database()
     if "frontend_build" in actions:
         ensure_frontend()
-    print("[2/4] 更新工作台数据结构…", flush=True)
+    print("[3/5] 更新工作台数据结构…", flush=True)
     run([str(VENV_PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"], BACKEND_ROOT, env)
-    print(f"[3/4] 同步已有论文资产：{source_root()}", flush=True)
+    print(f"[4/5] 同步已有论文资产：{source_root()}", flush=True)
     sync_assets(env)
-    print("[4/4] 工作台已就绪。保留此窗口即可持续使用；关闭窗口会停止网页服务。", flush=True)
+    print("[5/5] 工作台已就绪。GROBID 首次启动可能仍在加载；谱系页面会显示其状态。", flush=True)
     threading.Timer(1.2, lambda: webbrowser.open(URL)).start()
     return subprocess.call(
         [str(VENV_PYTHON), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8767"],

@@ -327,3 +327,77 @@ class Favorite(Base):
         ForeignKey("papers.id", ondelete="CASCADE"), unique=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ReferenceWork(Base, TimestampMixin):
+    __tablename__ = "reference_works"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    linked_paper_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("papers.id", ondelete="SET NULL"), index=True
+    )
+    title: Mapped[str] = mapped_column(Text)
+    normalized_title: Mapped[str] = mapped_column(Text, index=True)
+    authors: Mapped[list] = mapped_column(JSON, default=list)
+    publication_year: Mapped[int | None] = mapped_column(Integer, index=True)
+    doi: Mapped[str | None] = mapped_column(String(255), index=True)
+    arxiv_id: Mapped[str | None] = mapped_column(String(40), index=True)
+    openalex_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    venue: Mapped[str | None] = mapped_column(Text)
+    metadata_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PaperReference(Base, TimestampMixin):
+    __tablename__ = "paper_references"
+    __table_args__ = (
+        UniqueConstraint(
+            "paper_id",
+            "reference_key",
+            "source_sha256",
+            name="uq_paper_reference_source",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), index=True
+    )
+    reference_work_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("reference_works.id", ondelete="CASCADE"), index=True
+    )
+    reference_key: Mapped[str] = mapped_column(String(80))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    raw_reference: Mapped[str | None] = mapped_column(Text)
+    source_path: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    extractor: Mapped[str] = mapped_column(String(120))
+    extractor_version: Mapped[str] = mapped_column(String(80))
+
+
+class RelatedWorkEvidence(Base, TimestampMixin):
+    __tablename__ = "related_work_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "paper_reference_id",
+            "evidence_key",
+            "classifier_version",
+            name="uq_related_work_evidence_version",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_reference_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("paper_references.id", ondelete="CASCADE"), index=True
+    )
+    relation_type: Mapped[str] = mapped_column(String(40), index=True)
+    confidence: Mapped[float] = mapped_column(Float)
+    section_title: Mapped[str | None] = mapped_column(Text)
+    context_text: Mapped[str] = mapped_column(Text)
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    coordinates: Mapped[list] = mapped_column(JSON, default=list)
+    evidence_key: Mapped[str] = mapped_column(String(64))
+    classifier: Mapped[str] = mapped_column(String(120))
+    classifier_version: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(40), default="MACHINE", index=True)
+    source_path: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(String(64), index=True)

@@ -8,6 +8,7 @@ import {
   PhFlowArrow,
   PhFlask,
   PhHeart,
+  PhGitBranch,
   PhList,
   PhMagnifyingGlass,
   PhPulse,
@@ -30,6 +31,7 @@ const sections = [
     icon: PhBooks,
     items: [
       { label: "论文目录", to: "/papers", icon: PhMagnifyingGlass },
+      { label: "相关工作谱系", to: "/lineage", icon: PhGitBranch },
       { label: "运行记录", to: "/runs", icon: PhList },
     ],
   },

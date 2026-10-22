@@ -81,3 +81,75 @@ export function addInterest(kind: "interest" | "keyword", value: string, weight 
 export function deleteInterest(id: string) { return api<void>(`/api/preferences/interests/${id}`, { method: "DELETE" }) }
 export function updateWeights(weights: Record<string, number>) { return api<Record<string, number>>("/api/preferences/weights", { method: "PUT", body: JSON.stringify(weights) }) }
 export function getDocuments() { return api<{ summary: Record<string, number>; total: number; items: DocumentRecord[] }>("/api/knowledge/documents") }
+
+export interface LineageOverview {
+  papers_with_lineage: number
+  reference_works: number
+  references: number
+  evidence: number
+  relations: Record<string, number>
+  parser: { name: string; ready: boolean }
+}
+export interface LineagePaper {
+  id: string
+  title: string
+  conference: string
+  year: number
+  arxiv_id: string | null
+  pdf_url: string | null
+  reference_count: number
+}
+export interface LineageNode {
+  id: string
+  kind: "paper" | "reference_work"
+  title: string
+  year: number | null
+  venue: string | null
+  arxiv_id?: string | null
+  doi?: string | null
+  linked_paper_id?: string | null
+  is_center: boolean
+}
+export interface LineageEdge {
+  id: string
+  source: string
+  target: string
+  relation_type: string
+  confidence: number
+  status: string
+  evidence: {
+    context: string
+    section: string | null
+    page: number | null
+    coordinates: string[]
+    classifier: string
+    classifier_version: string
+    source_path: string
+    source_sha256: string
+    raw_reference: string | null
+  }
+}
+export interface LineageGraph {
+  center_paper_id: string
+  nodes: LineageNode[]
+  edges: LineageEdge[]
+  truncated: boolean
+}
+
+export function getLineageOverview() { return api<LineageOverview>("/api/lineage/overview") }
+export function getLineagePapers(query = "") {
+  const params = new URLSearchParams()
+  if (query.trim()) params.set("query", query.trim())
+  return api<{ items: LineagePaper[] }>(`/api/lineage/papers?${params}`)
+}
+export function getPaperLineage(id: string, relations: string[] = []) {
+  const params = new URLSearchParams()
+  relations.forEach((relation) => params.append("relation_type", relation))
+  return api<LineageGraph>(`/api/lineage/papers/${id}?${params}`)
+}
+export function startLineageExtraction(id: string) {
+  return api<{ status: string; run_id: string; message: string }>(
+    `/api/lineage/papers/${id}/extract`,
+    { method: "POST" },
+  )
+}

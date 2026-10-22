@@ -15,6 +15,18 @@ services:
       timeout: 3s
       retries: 20
 
+  grobid:
+    image: ${GROBID_IMAGE:-grobid/grobid:0.9.1-full}
+    init: true
+    ports:
+      - "127.0.0.1:8070:8070"
+      - "127.0.0.1:8071:8071"
+    restart: unless-stopped
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+
 volumes:
   research-workbench-postgres:
 

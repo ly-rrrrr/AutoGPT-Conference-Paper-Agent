@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <text>
+    <body>
+      <div>
+        <head>Related Work</head>
+        <p>Unlike prior rendering systems <ref type="bibr" target="#b0" coords="2,10,20,30,8">[1]</ref>, our approach preserves geometry.</p>
+        <p>We build on Vision Transformers <ref type="bibr" target="#b1" coords="2,10,40,30,8">[2]</ref> for global context.</p>
+        <p>We compare against the strong diffusion baseline <ref type="bibr" target="#b2" coords="3,10,20,30,8">[3]</ref>.</p>
+      </div>
+    </body>
+    <back>
+      <div type="references">
+        <listBibl>
+          <biblStruct xml:id="b0">
+            <analytic>
+              <title>Neural Rendering Before Geometry</title>
+              <author><persName><forename>Ada</forename><surname>Lee</surname></persName></author>
+            </analytic>
+            <monogr><title>CVPR</title><imprint><date when="2022" /></imprint></monogr>
+            <idno type="DOI">10.1000/rendering</idno>
+            <note type="raw_reference">Lee. Neural Rendering Before Geometry. CVPR 2022.</note>
+          </biblStruct>
+          <biblStruct xml:id="b1">
+            <analytic><title>An Image is Worth 16x16 Words</title></analytic>
+            <monogr><imprint><date when="2021" /></imprint></monogr>
+            <idno type="arxiv">arXiv:2010.11929</idno>
+          </biblStruct>
+          <biblStruct xml:id="b2">
+            <analytic><title>Denoising Diffusion Probabilistic Models</title></analytic>
+            <monogr><imprint><date when="2020" /></imprint></monogr>
+          </biblStruct>
+        </listBibl>
+      </div>
+    </back>
+  </text>
+</TEI>

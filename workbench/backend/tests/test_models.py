@@ -21,6 +21,9 @@ def test_v1_schema_contains_each_bounded_domain():
         "tags",
         "paper_tags",
         "favorites",
+        "reference_works",
+        "paper_references",
+        "related_work_evidence",
     }
 
 

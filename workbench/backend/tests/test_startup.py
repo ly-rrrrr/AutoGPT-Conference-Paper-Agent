@@ -14,15 +14,19 @@ def load_startup():
 
 
 class FakeProbe:
-    def __init__(self, database_running: bool, frontend_ready: bool = True):
+    def __init__(self, database_running: bool, frontend_ready: bool = True, grobid_running: bool = True):
         self._database_running = database_running
         self._frontend_ready = frontend_ready
+        self._grobid_running = grobid_running
 
     def database_running(self) -> bool:
         return self._database_running
 
     def frontend_ready(self) -> bool:
         return self._frontend_ready
+
+    def grobid_running(self) -> bool:
+        return self._grobid_running
 
 
 def test_startup_reuses_healthy_database():
@@ -32,6 +36,16 @@ def test_startup_reuses_healthy_database():
 
     assert "compose_up_db" not in actions
     assert actions == ["migrate", "sync", "serve"]
+
+
+def test_startup_starts_missing_grobid_independently():
+    startup = load_startup()
+
+    actions = startup.startup_actions(
+        FakeProbe(database_running=True, grobid_running=False)
+    )
+
+    assert actions == ["compose_up_grobid", "migrate", "sync", "serve"]
 
 
 def test_startup_builds_missing_frontend_before_migration():
