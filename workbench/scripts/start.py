@@ -26,7 +26,7 @@ def startup_actions(probe) -> list[str]:
     if not probe.database_running():
         actions.append("compose_up_db")
     if not probe.grobid_running():
-        actions.append("compose_up_grobid")
+        actions.append("compose_up_grobid_background")
     if not probe.frontend_ready():
         actions.append("frontend_build")
     return [*actions, "migrate", "sync", "serve"]
@@ -126,6 +126,24 @@ def ensure_docker() -> None:
     raise RuntimeError("Docker Desktop 在两分钟内未就绪，请查看 Docker 窗口中的提示")
 
 
+def start_grobid_in_background() -> None:
+    runtime_root = WORKBENCH_ROOT / "data" / "runtime"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    log_path = runtime_root / "grobid-startup.log"
+    with log_path.open("a", encoding="utf-8") as log:
+        subprocess.Popen(
+            ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "grobid"],
+            cwd=WORKBENCH_ROOT,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    print(
+        f"[后台] 正在准备 GROBID；首次下载不会阻塞网页。日志：{log_path}",
+        flush=True,
+    )
+
+
 def ensure_frontend() -> None:
     pnpm = shutil.which("pnpm.cmd" if os.name == "nt" else "pnpm")
     if shutil.which("node") is None or pnpm is None:
@@ -184,11 +202,10 @@ def main() -> int:
     print("科研工作台启动器 · http://127.0.0.1:8767", flush=True)
     if workbench_is_running():
         ensure_docker()
-        if not LocalProbe().grobid_running():
-            print("[准备] 启动 GROBID 学术文献解析服务；首次使用需要下载镜像…", flush=True)
-            run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "grobid"], WORKBENCH_ROOT)
         print("工作台已经运行，正在打开浏览器。", flush=True)
         webbrowser.open(URL)
+        if not LocalProbe().grobid_running():
+            start_grobid_in_background()
         return 0
     ensure_backend()
     ensure_docker()
@@ -198,9 +215,8 @@ def main() -> int:
     if "compose_up_db" in actions:
         print("[1/5] 启动 PostgreSQL…", flush=True)
         run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "db"], WORKBENCH_ROOT)
-    if "compose_up_grobid" in actions:
-        print("[2/5] 启动 GROBID 学术文献解析服务；首次使用需要下载镜像…", flush=True)
-        run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "grobid"], WORKBENCH_ROOT)
+    if "compose_up_grobid_background" in actions:
+        start_grobid_in_background()
     wait_for_database()
     if "frontend_build" in actions:
         ensure_frontend()

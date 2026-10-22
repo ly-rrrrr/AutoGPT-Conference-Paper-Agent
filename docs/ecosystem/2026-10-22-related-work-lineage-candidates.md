@@ -30,7 +30,7 @@ Stars 为调查时 GitHub 页面显示的近似值，只用于候选准入和生
 
 ## 决策
 
-- 学术结构解析：GROBID 0.9.1 Docker 服务，通过 `ScholarlyDocumentParser` 适配器接入。
+- 学术结构解析：GROBID 0.9.1 Docker 服务，通过 `ScholarlyDocumentParser` 适配器接入。默认采用约 500 MB、适合 CPU 批处理的 CRF 镜像；保留 `GROBID_IMAGE` 切换约 8 GB full 镜像的能力，在真实样本证明深度学习模型的引用解析收益后再升级默认配置。
 - 通用文档解析：保留 Docling 适配器边界，遇到 GROBID 无法处理的非标准文档时再启用。
 - 引用目标消歧：先使用 DOI、arXiv ID、规范化标题与年份；OpenAlex 作为可选远程元数据适配器，不让核心模型绑定外部 API。
 - 关系分类：保存原始引用和上下文；规则分类器只作为无模型费用的基线，并显式记录分类器及版本。后续模型分类器必须复用同一接口，不覆盖原始证据。

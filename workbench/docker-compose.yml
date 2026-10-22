@@ -16,7 +16,7 @@ services:
       retries: 20
 
   grobid:
-    image: ${GROBID_IMAGE:-grobid/grobid:0.9.1-full}
+    image: ${GROBID_IMAGE:-grobid/grobid:0.9.1-crf}
     init: true
     ports:
       - "127.0.0.1:8070:8070"

@@ -45,7 +45,7 @@ def test_startup_starts_missing_grobid_independently():
         FakeProbe(database_running=True, grobid_running=False)
     )
 
-    assert actions == ["compose_up_grobid", "migrate", "sync", "serve"]
+    assert actions == ["compose_up_grobid_background", "migrate", "sync", "serve"]
 
 
 def test_startup_builds_missing_frontend_before_migration():
