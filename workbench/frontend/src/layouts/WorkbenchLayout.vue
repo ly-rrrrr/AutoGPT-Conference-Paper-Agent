@@ -68,7 +68,10 @@ const sections = [
   {
     label: "系统设置",
     icon: PhGear,
-    items: [{ label: "模型配置", to: "/settings/models", icon: PhKey }],
+    items: [
+      { label: "模型配置", to: "/settings/models", icon: PhKey },
+      { label: "Embedding 配置", to: "/settings/embeddings", icon: PhDatabase },
+    ],
   },
 ]
 

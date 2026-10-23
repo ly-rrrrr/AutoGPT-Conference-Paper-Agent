@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import PipelineEvent, PipelineRun
 
 
-WORKER_PIPELINES = ("lineage",)
+WORKER_PIPELINES = ("lineage", "vector_index")
 
 
 def worker_identity() -> str:

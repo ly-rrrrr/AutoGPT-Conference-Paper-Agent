@@ -4,6 +4,7 @@ import StatusBadge from "../components/StatusBadge.vue"
 import {
   getDocuments,
   getInfrastructureOverview,
+  startVectorIndex,
   type DocumentRecord,
   type InfrastructureOverview,
 } from "../api"
@@ -13,6 +14,8 @@ const summary = ref<Record<string, number>>({})
 const total = ref(0)
 const infrastructure = ref<InfrastructureOverview | null>(null)
 const error = ref("")
+const message = ref("")
+const indexing = ref(false)
 
 async function load() {
   try {
@@ -30,6 +33,21 @@ async function load() {
 }
 
 onMounted(load)
+
+async function startIndexing() {
+  if (!window.confirm("将调用默认 Embedding 模型，最多索引 500 个尚未索引的正文块。是否继续？")) return
+  indexing.value = true
+  error.value = ""
+  try {
+    const result = await startVectorIndex()
+    message.value = `${result.message}（运行 ${result.run_id.slice(0, 8)}）`
+    await load()
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : "索引启动失败"
+  } finally {
+    indexing.value = false
+  }
+}
 </script>
 
 <template>
@@ -40,15 +58,20 @@ onMounted(load)
         <h2>知识资产底座</h2>
         <p class="lede">PDF 是原始资产，GROBID 负责结构化，PostgreSQL 保存事实与版本，Milvus 保存可重建的检索索引。</p>
       </div>
-      <button class="quiet-button" type="button" @click="load">刷新状态</button>
+      <div class="detail-actions">
+        <RouterLink to="/settings/embeddings">配置 Embedding</RouterLink>
+        <button class="quiet-button" type="button" @click="load">刷新状态</button>
+        <button class="primary-button" type="button" :disabled="!infrastructure?.vectors.embedding_ready || indexing" @click="startIndexing">{{ indexing ? "正在排队" : "增量建立索引" }}</button>
+      </div>
     </div>
 
+    <div v-if="message" class="notice">{{ message }}</div>
     <div v-if="error" class="notice notice--error">{{ error }}</div>
 
     <div v-if="infrastructure" class="metric-grid metric-grid--compact">
       <article class="metric"><span>资产版本</span><strong>{{ infrastructure.assets.revisions }}</strong><small>按内容哈希去重，可追溯</small></article>
       <article class="metric"><span>正文块</span><strong>{{ infrastructure.assets.chunks }}</strong><small>保留章节、页码与原文定位</small></article>
-      <article class="metric"><span>向量记录</span><strong>{{ infrastructure.vectors.records }}</strong><small>Milvus 索引均可由正文重建</small></article>
+      <article class="metric"><span>向量记录</span><strong>{{ infrastructure.vectors.records }}</strong><small>{{ infrastructure.vectors.embedding_model ? `${infrastructure.vectors.embedding_model} · ${infrastructure.vectors.embedding_dimension} 维` : "尚未配置 Embedding" }}</small></article>
       <article class="metric"><span>排队任务</span><strong>{{ infrastructure.jobs.by_status.QUEUED ?? 0 }}</strong><small>Worker 可恢复执行</small></article>
     </div>
 

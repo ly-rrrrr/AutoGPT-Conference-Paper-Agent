@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from app.database import session_scope
+from app.embedding_indexer import index_document_chunks
 from app.config import get_settings
 from app.job_queue import claim_next_run, fail_run, finish_run, worker_identity
 from app.lineage_extractor import extract_lineage
@@ -31,6 +32,14 @@ def execute_claimed_run(run_id: UUID) -> None:
             if paper is None:
                 raise RuntimeError("论文不存在")
             run.counters = extract_lineage(session, paper)
+            return
+        if run.pipeline == "vector_index":
+            run.counters = index_document_chunks(
+                session,
+                UUID(run.config["config_id"]),
+                max_chunks=int(run.config.get("max_chunks", 500)),
+                batch_size=int(run.config.get("batch_size", 32)),
+            )
             return
         raise RuntimeError(f"Worker 不支持任务类型：{run.pipeline}")
 

@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.dashboard import router as dashboard_router
+from app.api.embedding_configs import router as embedding_configs_router
 from app.api.cognition import router as cognition_router
 from app.api.atlas import router as atlas_router
 from app.api.imports import router as imports_router
@@ -24,6 +25,7 @@ from app.vector_store import milvus_ready
 def create_app() -> FastAPI:
     app = FastAPI(title="科研工作台", version="0.1.0")
     app.include_router(dashboard_router)
+    app.include_router(embedding_configs_router)
     app.include_router(cognition_router)
     app.include_router(atlas_router)
     app.include_router(imports_router)

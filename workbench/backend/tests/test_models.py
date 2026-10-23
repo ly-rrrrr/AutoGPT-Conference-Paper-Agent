@@ -33,6 +33,7 @@ def test_schema_contains_each_bounded_domain():
         "research_evidence_refs",
         "insight_proposals",
         "model_provider_configs",
+        "embedding_provider_configs",
         "cognition_paper_memories",
         "cognition_artifacts",
         "cognition_artifact_sources",

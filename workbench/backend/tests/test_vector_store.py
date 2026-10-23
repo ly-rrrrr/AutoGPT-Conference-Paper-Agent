@@ -88,6 +88,6 @@ def test_vector_store_creates_model_scoped_collection_and_upserts():
         kind="paragraph",
     )
 
-    assert name == "workbench_paragraph_embedding_v1"
+    assert name == "workbench_paragraph_embedding_v1_d3"
     assert clients[0].created[1]["dimension"] == 3
     assert result == {"upsert_count": 1}

@@ -4,6 +4,7 @@ import AnalysisView from "./views/AnalysisView.vue"
 import AtlasView from "./views/AtlasView.vue"
 import CognitionView from "./views/CognitionView.vue"
 import DashboardView from "./views/DashboardView.vue"
+import EmbeddingConfigView from "./views/EmbeddingConfigView.vue"
 import KnowledgeView from "./views/KnowledgeView.vue"
 import LineageView from "./views/LineageView.vue"
 import MappingView from "./views/MappingView.vue"
@@ -29,6 +30,7 @@ export default createRouter({
     { path: "/cognition", component: CognitionView, meta: { title: "认知运行" } },
     { path: "/atlas", component: AtlasView, meta: { title: "方法认知图谱" } },
     { path: "/settings/models", component: ModelConfigView, meta: { title: "模型配置" } },
+    { path: "/settings/embeddings", component: EmbeddingConfigView, meta: { title: "Embedding 配置" } },
     { path: "/preferences", component: PreferencesView, meta: { title: "研究偏好" } },
   ],
 })

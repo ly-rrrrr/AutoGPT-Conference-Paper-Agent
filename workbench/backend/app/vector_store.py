@@ -30,9 +30,17 @@ def _default_client_factory(**kwargs) -> MilvusClientLike:
     return MilvusClient(**kwargs)
 
 
-def collection_name(asset_type: str, embedding_model: str, settings: Settings | None = None) -> str:
+def collection_name(
+    asset_type: str,
+    embedding_model: str,
+    settings: Settings | None = None,
+    dimension: int | None = None,
+) -> str:
     settings = settings or get_settings()
-    normalized = re.sub(r"[^a-z0-9_]+", "_", f"{asset_type}_{embedding_model}".casefold())
+    identity = f"{asset_type}_{embedding_model}"
+    if dimension is not None:
+        identity = f"{identity}_d{dimension}"
+    normalized = re.sub(r"[^a-z0-9_]+", "_", identity.casefold())
     normalized = normalized.strip("_")
     if not normalized:
         raise ValueError("Milvus collection 名称不能为空")
@@ -90,7 +98,7 @@ class VectorStore:
     ) -> str:
         if dimension <= 0:
             raise ValueError("embedding dimension 必须大于 0")
-        name = collection_name(asset_type, embedding_model, self.settings)
+        name = collection_name(asset_type, embedding_model, self.settings, dimension)
         if not self.client.has_collection(name, timeout=self.settings.milvus_timeout_seconds):
             self.client.create_collection(
                 collection_name=name,
@@ -129,6 +137,13 @@ class VectorStore:
                     "kind": kind,
                 }
             ],
+            timeout=self.settings.milvus_timeout_seconds,
+        )
+
+    def upsert_many(self, collection: str, items: list[dict]) -> dict:
+        return self.client.upsert(
+            collection,
+            data=items,
             timeout=self.settings.milvus_timeout_seconds,
         )
 

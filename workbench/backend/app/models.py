@@ -351,8 +351,9 @@ class VectorIndexRecord(Base, TimestampMixin):
         UniqueConstraint(
             "document_chunk_id",
             "embedding_model",
+            "embedding_dimension",
             "index_version",
-            name="uq_vector_index_chunk_model_version",
+            name="uq_vector_index_chunk_model_dimension_version",
         ),
         UniqueConstraint(
             "collection_name", "entity_id", name="uq_vector_collection_entity"
@@ -703,6 +704,20 @@ class ModelProviderConfig(Base, TimestampMixin):
     provider: Mapped[str] = mapped_column(String(80))
     base_url: Mapped[str] = mapped_column(Text)
     model_name: Mapped[str] = mapped_column(String(160))
+    secret_ref: Mapped[str] = mapped_column(String(160), unique=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="ACTIVE", index=True)
+
+
+class EmbeddingProviderConfig(Base, TimestampMixin):
+    __tablename__ = "embedding_provider_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    provider: Mapped[str] = mapped_column(String(80))
+    base_url: Mapped[str] = mapped_column(Text)
+    model_name: Mapped[str] = mapped_column(String(160))
+    dimension: Mapped[int] = mapped_column(Integer)
     secret_ref: Mapped[str] = mapped_column(String(160), unique=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     status: Mapped[str] = mapped_column(String(40), default="ACTIVE", index=True)

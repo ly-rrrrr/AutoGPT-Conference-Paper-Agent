@@ -84,7 +84,13 @@ export interface InfrastructureOverview {
     chunks: number
     by_kind_status: Array<{ kind: string; status: string; count: number }>
   }
-  vectors: { records: number; by_status: Record<string, number> }
+  vectors: {
+    records: number
+    by_status: Record<string, number>
+    embedding_ready: boolean
+    embedding_model: string | null
+    embedding_dimension: number | null
+  }
   jobs: { by_status: Record<string, number> }
 }
 export function getPreferences() { return api<Preferences>("/api/preferences") }
@@ -93,6 +99,12 @@ export function deleteInterest(id: string) { return api<void>(`/api/preferences/
 export function updateWeights(weights: Record<string, number>) { return api<Record<string, number>>("/api/preferences/weights", { method: "PUT", body: JSON.stringify(weights) }) }
 export function getDocuments() { return api<{ summary: Record<string, number>; total: number; items: DocumentRecord[] }>("/api/knowledge/documents") }
 export function getInfrastructureOverview() { return api<InfrastructureOverview>("/api/infrastructure/overview") }
+export function startVectorIndex(maxChunks = 500, batchSize = 32) {
+  return api<{ status: string; run_id: string; message: string }>("/api/infrastructure/index/start", {
+    method: "POST",
+    body: JSON.stringify({ max_chunks: maxChunks, batch_size: batchSize }),
+  })
+}
 
 export interface LineageOverview {
   papers_with_lineage: number
@@ -511,4 +523,24 @@ export function createModelConfig(payload: ModelProviderConfigInput) {
 
 export function updateModelConfig(id: string, payload: ModelProviderConfigInput) {
   return api<ModelProviderConfig>(`/api/model-configs/${id}`, { method: "PUT", body: JSON.stringify(payload) })
+}
+
+export interface EmbeddingProviderConfig extends ModelProviderConfig {
+  dimension: number
+}
+
+export interface EmbeddingProviderConfigInput extends ModelProviderConfigInput {
+  dimension: number
+}
+
+export function getEmbeddingConfigs() {
+  return api<{ items: EmbeddingProviderConfig[]; total: number }>("/api/embedding-configs")
+}
+
+export function createEmbeddingConfig(payload: EmbeddingProviderConfigInput) {
+  return api<EmbeddingProviderConfig>("/api/embedding-configs", { method: "POST", body: JSON.stringify(payload) })
+}
+
+export function updateEmbeddingConfig(id: string, payload: EmbeddingProviderConfigInput) {
+  return api<EmbeddingProviderConfig>(`/api/embedding-configs/${id}`, { method: "PUT", body: JSON.stringify(payload) })
 }
