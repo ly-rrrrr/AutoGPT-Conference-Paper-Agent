@@ -44,6 +44,12 @@ GraphRAG 的社区和全局摘要可帮助发现会议年度的潜在结构，�
 
 LangGraph 能力成熟，但直接引入会与 AutoGPT、FastAPI 任务记录和现有 checkpoint 形成三套状态源。V1 先定义框架无关的 `ResearchWorkflowAdapter`；若 AutoGPT 无法实现动态工具循环、恢复或流式观察，再用同一协议对比 LangGraph，而不是提前重构。
 
+### 凭据与兼容模型接入
+
+- 供应商调用采用 OpenAI-compatible Responses API 边界，模型配置不与 AIHubMix、OpenAI 或其他兼容供应商的数据结构绑定。
+- 本机密钥交给 Python `keyring` 与 Windows Credential Manager 托管；PostgreSQL 只保存凭据引用，前端和 API 不具备读取明文密钥的接口。
+- 第一条可运行纵向链路直接使用 Responses 工具调用验证产品闭环。PaperQA2 与 DSPy 仍保留在适配器边界之后，分别增强证据研究和可优化语义程序，而不是阻塞基础闭环。
+
 ## 自研边界
 
 必须自研：

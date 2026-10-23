@@ -5,14 +5,18 @@ import {
   PhCheckCircle,
   PhFlask,
   PhPlus,
+  PhPlay,
+  PhPencilSimple,
   PhWarningCircle,
 } from "@phosphor-icons/vue"
-import { computed, onMounted, reactive, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue"
 import {
   createResearchBrief,
   getResearchBrief,
   getResearchBriefs,
   getResearchRuntime,
+  startResearchBrief,
+  updateResearchBrief,
   type ResearchBrief,
   type ResearchBriefDetail,
   type ResearchRuntimeStatus,
@@ -23,13 +27,16 @@ const selected = ref<ResearchBriefDetail | null>(null)
 const runtime = ref<ResearchRuntimeStatus | null>(null)
 const loading = ref(true)
 const creating = ref(false)
+const starting = ref(false)
+const editingId = ref("")
 const error = ref("")
 const message = ref("")
+let pollTimer: ReturnType<typeof setInterval> | undefined
 const form = reactive({
   title: "",
   objective: "",
   conference: "CVPR",
-  year: 2025,
+  year: 2026,
   outputLanguage: "zh-CN",
   maxModelCalls: 40,
 })
@@ -56,12 +63,32 @@ async function chooseBrief(id: string) {
   }
 }
 
-async function createBrief() {
+function editSelected() {
+  if (!selected.value) return
+  editingId.value = selected.value.id
+  form.title = selected.value.title
+  form.objective = selected.value.objective
+  form.conference = String(selected.value.scope.conference ?? "")
+  form.year = Number(selected.value.scope.year ?? 2026)
+  form.outputLanguage = String(selected.value.output_preferences.language ?? "zh-CN")
+  form.maxModelCalls = Number(selected.value.budget.max_model_calls ?? 40)
+  window.scrollTo({ top: 0, behavior: "smooth" })
+}
+
+function resetForm() {
+  editingId.value = ""
+  form.title = ""
+  form.objective = ""
+  form.conference = "CVPR"
+  form.year = 2026
+}
+
+async function submitBrief() {
   creating.value = true
   error.value = ""
   message.value = ""
   try {
-    const created = await createResearchBrief({
+    const payload = {
       title: form.title.trim(),
       objective: form.objective.trim(),
       scope: { conference: form.conference.trim().toUpperCase(), year: form.year },
@@ -72,15 +99,40 @@ async function createBrief() {
       },
       budget: { max_model_calls: form.maxModelCalls },
       output_preferences: { language: form.outputLanguage, mode: "interactive_atlas" },
-    })
-    form.title = ""
-    form.objective = ""
-    message.value = "研究任务草案已保存。AI 研究运行时接入后，这份目标将直接成为执行输入。"
-    await loadBriefs(created.id)
+    }
+    const saved = editingId.value
+      ? await updateResearchBrief(editingId.value, payload)
+      : await createResearchBrief(payload)
+    const wasEditing = Boolean(editingId.value)
+    resetForm()
+    message.value = wasEditing ? "研究任务已更新，语料覆盖已经重新计算。" : "研究任务草案已保存。"
+    await loadBriefs(saved.id)
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : "研究任务创建失败"
   } finally {
     creating.value = false
+  }
+}
+
+async function startResearch() {
+  if (!selected.value) return
+  starting.value = true
+  error.value = ""
+  message.value = ""
+  try {
+    const result = await startResearchBrief(selected.value.id)
+    message.value = `${result.message}；页面会自动刷新产物。`
+    await loadBriefs(selected.value.id)
+    clearInterval(pollTimer)
+    pollTimer = setInterval(async () => {
+      if (!selected.value) return
+      await loadBriefs(selected.value.id)
+      if (selected.value.status !== "RUNNING") clearInterval(pollTimer)
+    }, 3000)
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : "主动研究启动失败"
+  } finally {
+    starting.value = false
   }
 }
 
@@ -99,6 +151,7 @@ onMounted(async () => {
     loading.value = false
   }
 })
+onBeforeUnmount(() => clearInterval(pollTimer))
 </script>
 
 <template>
@@ -122,10 +175,10 @@ onMounted(async () => {
     <div class="research-create-grid">
       <article class="panel">
         <div class="panel__heading">
-          <div><p class="page-kicker">RESEARCH BRIEF</p><h3>创建研究任务</h3></div>
+          <div><p class="page-kicker">RESEARCH BRIEF</p><h3>{{ editingId ? "编辑研究任务" : "创建研究任务" }}</h3></div>
           <PhPlus :size="21" />
         </div>
-        <form class="research-form" @submit.prevent="createBrief">
+        <form class="research-form" @submit.prevent="submitBrief">
           <label><span>任务名称</span><input v-model="form.title" required maxlength="300" placeholder="例如：CVPR 2025 方法思想迁移地图" /></label>
           <label><span>真正想回答的问题</span><textarea v-model="form.objective" required maxlength="10000" rows="6" placeholder="不要写固定分类规则；描述你希望系统主动发现、比较和解释什么。" /></label>
           <div class="form-pair">
@@ -136,7 +189,7 @@ onMounted(async () => {
             <label><span>输出语言</span><select v-model="form.outputLanguage"><option value="zh-CN">中文</option><option value="en">English</option></select></label>
             <label><span>模型调用预算</span><input v-model.number="form.maxModelCalls" type="number" min="1" max="10000" /></label>
           </div>
-          <button class="primary-button" type="submit" :disabled="creating"><PhPlus /> {{ creating ? "正在保存" : "保存任务草案" }}</button>
+          <div class="form-actions"><button class="primary-button" type="submit" :disabled="creating"><PhPlus /> {{ creating ? "正在保存" : editingId ? "更新任务草案" : "保存任务草案" }}</button><button v-if="editingId" class="quiet-button" type="button" @click="resetForm">取消编辑</button></div>
         </form>
       </article>
 
@@ -176,12 +229,23 @@ onMounted(async () => {
           <dl class="brief-meta">
             <div v-for="(value, key) in selected.scope" :key="key"><dt>{{ key }}</dt><dd>{{ displayValue(value) }}</dd></div>
           </dl>
+          <div class="coverage-strip" :data-limited="selected.coverage.paper_count < 10">
+            <strong>范围内 {{ selected.coverage.paper_count }} 篇论文</strong>
+            <span>其中 {{ selected.coverage.analysis_count }} 篇已有结构化分析。系统只会基于实际可用材料形成认识，不会把材料缺口伪装成年度结论。</span>
+          </div>
           <div class="artifact-metrics">
             <div><strong>{{ selected.artifacts.length }}</strong><span>版本化认知产物</span></div>
             <div><strong>{{ selected.insights.length }}</strong><span>候选洞察</span></div>
             <div><strong>{{ evidenceCounts.SUPPORTS }}</strong><span>支持证据</span></div>
             <div><strong>{{ evidenceCounts.CHALLENGES }}</strong><span>反方证据</span></div>
           </div>
+          <div class="research-actions">
+            <button class="primary-button" type="button" :disabled="starting || selected.status === 'RUNNING' || !runtime?.ready" @click="startResearch"><PhPlay weight="fill" /> {{ selected.status === "RUNNING" ? "研究进行中" : starting ? "正在启动" : "启动主动研究" }}</button>
+            <button class="quiet-button" type="button" :disabled="selected.status === 'RUNNING'" @click="editSelected"><PhPencilSimple /> 编辑任务</button>
+            <span v-if="!runtime?.ready">请先到“系统设置 → 模型配置”保存默认模型密钥。</span>
+            <span v-else>将调用默认模型，并按任务预算自主读取本地论文材料。</span>
+          </div>
+          <div v-if="selected.runs.length" class="research-run-state"><strong>最近运行：{{ selected.runs[0].status }}</strong><code>{{ JSON.stringify(selected.runs[0].counters) }}</code></div>
           <section v-if="selected.insights.length" class="insight-list">
             <article v-for="insight in selected.insights" :key="insight.id">
               <div><span>{{ insight.epistemic_status }}</span><span>{{ insight.status }}</span></div>
@@ -191,7 +255,7 @@ onMounted(async () => {
               <details v-if="insight.counterarguments.length || insight.open_questions.length"><summary>反方观点与开放问题</summary><pre>{{ JSON.stringify({ counterarguments: insight.counterarguments, open_questions: insight.open_questions }, null, 2) }}</pre></details>
             </article>
           </section>
-          <div v-else class="artifact-empty"><PhCheckCircle :size="28" /><strong>任务目标已被可靠保存</strong><span>当前尚无 AI 产物。接入研究运行时后，这里将呈现带证据、反证、版本和不确定性的主动洞察。</span></div>
+          <div v-else class="artifact-empty"><PhCheckCircle :size="28" /><strong>任务目标已被可靠保存</strong><span>配置默认模型后点击“启动主动研究”，这里将呈现带证据、反证、版本和不确定性的候选洞察。</span></div>
         </template>
         <div v-else class="empty-state">选择一个研究任务查看产物。</div>
       </article>

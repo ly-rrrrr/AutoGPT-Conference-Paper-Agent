@@ -29,6 +29,7 @@ def test_schema_contains_each_bounded_domain():
         "research_artifact_dependencies",
         "research_evidence_refs",
         "insight_proposals",
+        "model_provider_configs",
     }
 
 

@@ -223,6 +223,8 @@ export interface ResearchBriefDetail extends ResearchBrief {
   evidence: ResearchEvidence[]
   insights: ResearchInsight[]
   dependencies: Array<{ parent_artifact_id: string; child_artifact_id: string; relation: string }>
+  runs: Array<{ id: string; status: string; counters: Record<string, unknown>; started_at: string | null; ended_at: string | null }>
+  coverage: { paper_count: number; analysis_count: number }
 }
 
 export interface ResearchBriefInput {
@@ -252,6 +254,49 @@ export function createResearchBrief(payload: ResearchBriefInput) {
   return api<ResearchBrief>("/api/research/briefs", { method: "POST", body: JSON.stringify(payload) })
 }
 
+export function updateResearchBrief(id: string, payload: ResearchBriefInput) {
+  return api<ResearchBrief>(`/api/research/briefs/${id}`, { method: "PUT", body: JSON.stringify(payload) })
+}
+
 export function getResearchRuntime() {
   return api<ResearchRuntimeStatus>("/api/research/runtime")
+}
+
+export function startResearchBrief(id: string) {
+  return api<{ status: string; run_id: string; message: string }>(`/api/research/briefs/${id}/run`, { method: "POST" })
+}
+
+export interface ModelProviderConfig {
+  id: string
+  name: string
+  provider: string
+  base_url: string
+  model_name: string
+  is_default: boolean
+  status: string
+  has_api_key: boolean
+  api_key_mask: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ModelProviderConfigInput {
+  name: string
+  provider: string
+  base_url: string
+  model_name: string
+  api_key?: string
+  is_default: boolean
+}
+
+export function getModelConfigs() {
+  return api<{ items: ModelProviderConfig[]; total: number }>("/api/model-configs")
+}
+
+export function createModelConfig(payload: ModelProviderConfigInput) {
+  return api<ModelProviderConfig>("/api/model-configs", { method: "POST", body: JSON.stringify(payload) })
+}
+
+export function updateModelConfig(id: string, payload: ModelProviderConfigInput) {
+  return api<ModelProviderConfig>(`/api/model-configs/${id}`, { method: "PUT", body: JSON.stringify(payload) })
 }

@@ -113,6 +113,27 @@ def test_artifact_versioning_keeps_dependencies_and_supersedes_without_overwrite
     ]
 
 
+def test_research_brief_can_be_retargeted_before_running(client):
+    brief = create_brief(client)
+
+    response = client.put(
+        f"/api/research/briefs/{brief['id']}",
+        headers=ACTION_HEADERS,
+        json={
+            "title": "ECCV 方法迁移",
+            "objective": "从已有年度材料中寻找跨领域迁移。",
+            "scope": {"conference": "ECCV", "year": 2026},
+            "tool_policy": brief["tool_policy"],
+            "budget": brief["budget"],
+            "output_preferences": brief["output_preferences"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["scope"] == {"conference": "ECCV", "year": 2026}
+    assert response.json()["status"] == "DRAFT"
+
+
 def test_research_mutations_require_explicit_local_action(client):
     response = client.post(
         "/api/research/briefs",

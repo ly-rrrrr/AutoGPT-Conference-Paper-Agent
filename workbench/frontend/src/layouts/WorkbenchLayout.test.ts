@@ -24,5 +24,7 @@ describe("WorkbenchLayout", () => {
     expect(wrapper.text()).toContain("采集与分析")
     expect(wrapper.text()).toContain("知识库")
     expect(wrapper.text()).toContain("个性化")
+    expect(wrapper.text()).toContain("系统设置")
+    expect(wrapper.text()).toContain("模型配置")
   })
 })

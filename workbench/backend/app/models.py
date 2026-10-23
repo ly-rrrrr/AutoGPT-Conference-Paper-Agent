@@ -500,3 +500,16 @@ class InsightProposal(Base, TimestampMixin):
     open_questions: Mapped[list] = mapped_column(JSON, default=list)
     suggested_view: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(40), default="CANDIDATE", index=True)
+
+
+class ModelProviderConfig(Base, TimestampMixin):
+    __tablename__ = "model_provider_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    provider: Mapped[str] = mapped_column(String(80))
+    base_url: Mapped[str] = mapped_column(Text)
+    model_name: Mapped[str] = mapped_column(String(160))
+    secret_ref: Mapped[str] = mapped_column(String(160), unique=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="ACTIVE", index=True)

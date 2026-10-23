@@ -53,11 +53,11 @@ class ResearchWorkflowAdapter(Protocol):
     def run(self, context: ResearchContext) -> list[dict[str, Any]]: ...
 
 
-def runtime_status() -> dict[str, Any]:
+def runtime_status(provider_ready: bool = False) -> dict[str, Any]:
     paperqa_installed = find_spec("paperqa") is not None
     dspy_installed = find_spec("dspy") is not None
     return {
-        "ready": False,
+        "ready": provider_ready,
         "control_plane": {
             "name": "AutoGPT",
             "status": "AVAILABLE",
@@ -83,10 +83,16 @@ def runtime_status() -> dict[str, Any]:
                 "detail": "研究提议、质疑、修订与综合的声明式语义程序。",
             },
             {
+                "id": "model-provider",
+                "name": "OpenAI-compatible Provider",
+                "status": "READY" if provider_ready else "NOT_CONFIGURED",
+                "detail": "为主动研究循环提供模型推理与工具选择。",
+            },
+            {
                 "id": "active-research-adapter",
                 "name": "Active Research Adapter",
-                "status": "NOT_CONFIGURED",
-                "detail": "等待模型供应方、PaperQA2 与 DSPy 组合配置。",
+                "status": "READY" if provider_ready else "NOT_CONFIGURED",
+                "detail": "目标驱动的论文检索、材料读取、反证探索与洞察发布循环。",
             },
         ],
     }

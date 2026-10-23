@@ -95,7 +95,7 @@ def ensure_backend() -> None:
         print("[准备] 创建工作台 Python 环境…", flush=True)
         run([sys.executable, "-m", "venv", str(VENV_ROOT)])
     check = subprocess.run(
-        [str(VENV_PYTHON), "-c", "import fastapi, httpx, sqlalchemy, uvicorn, alembic, psycopg"],
+        [str(VENV_PYTHON), "-c", "import fastapi, httpx, keyring, sqlalchemy, uvicorn, alembic, psycopg"],
         capture_output=True,
     )
     if check.returncode:

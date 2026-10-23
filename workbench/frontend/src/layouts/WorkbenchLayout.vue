@@ -8,6 +8,8 @@ import {
   PhFlowArrow,
   PhFlask,
   PhHeart,
+  PhGear,
+  PhKey,
   PhGitBranch,
   PhList,
   PhMagnifyingGlass,
@@ -58,6 +60,11 @@ const sections = [
     label: "个性化",
     icon: PhHeart,
     items: [{ label: "研究偏好", to: "/preferences", icon: PhSparkle }],
+  },
+  {
+    label: "系统设置",
+    icon: PhGear,
+    items: [{ label: "模型配置", to: "/settings/models", icon: PhKey }],
   },
 ]
 

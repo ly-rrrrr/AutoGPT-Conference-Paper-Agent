@@ -9,6 +9,8 @@ vi.mock("../api", () => ({
   getResearchBrief: vi.fn(),
   getResearchBriefs: vi.fn(),
   getResearchRuntime: vi.fn(),
+  startResearchBrief: vi.fn(),
+  updateResearchBrief: vi.fn(),
 }))
 
 beforeEach(() => {
@@ -39,7 +41,7 @@ it("saves a goal-driven research brief without starting a fake workflow", async 
     .mockResolvedValueOnce({ items: [createdBrief], total: 1 })
   vi.mocked(getResearchBrief).mockResolvedValue({
     ...createdBrief,
-    artifacts: [], evidence: [], insights: [], dependencies: [],
+    artifacts: [], evidence: [], insights: [], dependencies: [], runs: [], coverage: { paper_count: 1, analysis_count: 1 },
   })
 
   const wrapper = mount(ResearchView)

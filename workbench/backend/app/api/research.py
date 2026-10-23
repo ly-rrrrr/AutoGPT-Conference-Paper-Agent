@@ -1,31 +1,43 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.pipelines import require_local_action
 from app.database import get_session
 from app.models import (
+    ConferenceEdition,
     DocumentAsset,
     InsightProposal,
+    ModelProviderConfig,
     Paper,
+    PaperAnalysis,
+    PipelineRun,
     ResearchArtifact,
     ResearchArtifactDependency,
     ResearchBrief,
     ResearchEvidenceRef,
 )
+from app.active_research import run_research_brief
 from app.research_runtime import runtime_status
+from app.secret_store import get_secret
 
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
 
 @router.get("/runtime")
-def get_runtime_status() -> dict:
-    return runtime_status()
+def get_runtime_status(session: Session = Depends(get_session)) -> dict:
+    config = session.scalar(
+        select(ModelProviderConfig)
+        .where(ModelProviderConfig.is_default.is_(True), ModelProviderConfig.status == "ACTIVE")
+        .order_by(ModelProviderConfig.updated_at.desc())
+    )
+    return runtime_status(bool(config and get_secret(config.secret_ref)))
 
 
 class ResearchBriefInput(BaseModel):
@@ -167,11 +179,51 @@ def create_brief(
     return _brief(item)
 
 
+@router.put("/briefs/{brief_id}", dependencies=[Depends(require_local_action)])
+def update_brief(
+    brief_id: uuid.UUID,
+    payload: ResearchBriefInput,
+    session: Session = Depends(get_session),
+) -> dict:
+    item = session.get(ResearchBrief, brief_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="研究任务不存在")
+    if item.status == "RUNNING":
+        raise HTTPException(status_code=409, detail="研究任务运行期间不能修改")
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
+    item.status = "DRAFT"
+    session.commit()
+    return _brief(item)
+
+
 @router.get("/briefs/{brief_id}")
 def get_brief(brief_id: uuid.UUID, session: Session = Depends(get_session)) -> dict:
     brief = session.get(ResearchBrief, brief_id)
     if brief is None:
         raise HTTPException(status_code=404, detail="研究任务不存在")
+    paper_scope = select(Paper.id).join(
+        ConferenceEdition, Paper.conference_edition_id == ConferenceEdition.id
+    )
+    conference = brief.scope.get("conference")
+    year = brief.scope.get("year")
+    if conference:
+        paper_scope = paper_scope.where(
+            ConferenceEdition.conference == str(conference).upper()
+        )
+    if year:
+        paper_scope = paper_scope.where(ConferenceEdition.year == int(year))
+    scoped_papers = paper_scope.subquery()
+    paper_count = session.scalar(select(func.count()).select_from(scoped_papers)) or 0
+    analysis_count = (
+        session.scalar(
+            select(func.count(func.distinct(PaperAnalysis.paper_id))).where(
+                PaperAnalysis.paper_id.in_(select(scoped_papers.c.id)),
+                PaperAnalysis.status == "SUCCESS",
+            )
+        )
+        or 0
+    )
     artifacts = list(
         session.scalars(
             select(ResearchArtifact)
@@ -205,6 +257,17 @@ def get_brief(brief_id: uuid.UUID, session: Session = Depends(get_session)) -> d
                 )
             )
         )
+    runs = list(
+        session.scalars(
+            select(PipelineRun)
+            .where(
+                PipelineRun.pipeline == "active_research",
+                PipelineRun.config["brief_id"].as_string() == str(brief.id),
+            )
+            .order_by(PipelineRun.created_at.desc())
+            .limit(10)
+        )
+    )
     return {
         **_brief(brief),
         "artifacts": [_artifact(item) for item in artifacts],
@@ -218,7 +281,70 @@ def get_brief(brief_id: uuid.UUID, session: Session = Depends(get_session)) -> d
             }
             for item in dependencies
         ],
+        "runs": [
+            {
+                "id": str(item.id),
+                "status": item.status,
+                "counters": item.counters,
+                "started_at": item.started_at,
+                "ended_at": item.ended_at,
+            }
+            for item in runs
+        ],
+        "coverage": {
+            "paper_count": paper_count,
+            "analysis_count": analysis_count,
+        },
     }
+
+
+@router.post(
+    "/briefs/{brief_id}/run",
+    status_code=202,
+    dependencies=[Depends(require_local_action)],
+)
+def start_research_brief(
+    brief_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> dict:
+    brief = session.get(ResearchBrief, brief_id)
+    if brief is None:
+        raise HTTPException(status_code=404, detail="研究任务不存在")
+    active = session.scalar(
+        select(PipelineRun).where(
+            PipelineRun.pipeline == "active_research",
+            PipelineRun.status.in_(["QUEUED", "RUNNING"]),
+            PipelineRun.config["brief_id"].as_string() == str(brief.id),
+        )
+    )
+    if active:
+        raise HTTPException(status_code=409, detail="这个研究任务已经在运行")
+    config = session.scalar(
+        select(ModelProviderConfig)
+        .where(ModelProviderConfig.is_default.is_(True), ModelProviderConfig.status == "ACTIVE")
+        .order_by(ModelProviderConfig.updated_at.desc())
+    )
+    if config is None or not get_secret(config.secret_ref):
+        raise HTTPException(status_code=409, detail="请先在模型配置中保存默认模型与 API Key")
+    now = datetime.now(UTC)
+    run = PipelineRun(
+        run_key=f"research-{brief.id}-{uuid.uuid4().hex[:8]}",
+        pipeline="active_research",
+        status="RUNNING",
+        config={
+            "brief_id": str(brief.id),
+            "model_config_id": str(config.id),
+            "model": config.model_name,
+        },
+        counters={},
+        started_at=now,
+    )
+    session.add(run)
+    brief.status = "RUNNING"
+    session.commit()
+    background_tasks.add_task(run_research_brief, brief.id, run.id)
+    return {"status": "RUNNING", "run_id": str(run.id), "message": "主动研究已启动"}
 
 
 @router.post(

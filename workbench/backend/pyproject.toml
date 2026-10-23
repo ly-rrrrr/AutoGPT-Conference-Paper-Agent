@@ -7,6 +7,7 @@ dependencies = [
   "alembic>=1.13,<2",
   "fastapi>=0.115,<1",
   "httpx>=0.27,<1",
+  "keyring>=25,<26",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2,<3",
   "sqlalchemy>=2,<3",
@@ -18,6 +19,14 @@ test = [
   "httpx>=0.27,<1",
   "pytest>=8,<9",
 ]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["migrations*", "tests*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
