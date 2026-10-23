@@ -12,7 +12,8 @@ def test_cognition_overview_uses_complete_conference_denominator(client, seeded_
     assert body["coverage"]["likes"] == 1
     assert body["gaps"]["missing_analysis"] == 1
     assert body["stages"][0]["status"] == "SOURCE_READY"
-    assert body["stages"][1]["status"] == "NOT_IMPLEMENTED"
+    assert body["stages"][1]["status"] == "READY"
+    assert body["model_ready"] is False
 
 
 def test_preparing_same_corpus_twice_reuses_material_snapshot(client, seeded_db):
@@ -46,3 +47,26 @@ def test_preparing_same_corpus_twice_reuses_material_snapshot(client, seeded_db)
         "CACHE_PLAN_CREATED",
         "HARNESS_PREPARED",
     ]
+
+
+def test_discovery_requires_a_ready_default_model(client, seeded_db):
+    client.post(
+        "/api/cognition/prepare",
+        headers=ACTION_HEADERS,
+        json={"conference": "ECCV", "year": 2026},
+    )
+
+    response = client.post(
+        "/api/cognition/discovery/start",
+        headers=ACTION_HEADERS,
+        json={
+            "conference": "ECCV",
+            "year": 2026,
+            "max_model_calls": 1,
+            "papers_per_batch": 4,
+            "max_input_chars": 20000,
+        },
+    )
+
+    assert response.status_code == 409
+    assert "模型" in response.json()["detail"]

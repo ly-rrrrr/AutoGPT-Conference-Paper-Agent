@@ -2,25 +2,29 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.pipelines import require_local_action
-from app.database import get_session
+from app.cognition_discovery import DISCOVERY_VERSION, run_corpus_discovery
 from app.cognition_workflow import prepare_control_state
+from app.database import get_session
 from app.models import (
     CognitionArtifact,
+    CognitionArtifactSource,
     CognitionPaperMemory,
     ConferenceEdition,
     DocumentAsset,
     ImpactSignal,
+    ModelProviderConfig,
     Paper,
     PaperAnalysis,
     PipelineEvent,
     PipelineRun,
 )
+from app.secret_store import get_secret
 
 
 router = APIRouter(prefix="/api/cognition", tags=["cognition"])
@@ -31,6 +35,12 @@ PAPER_MEMORY_VERSION = "paper-memory-v1"
 class CorpusScope(BaseModel):
     conference: str = Field(default="CVPR", min_length=1, max_length=40)
     year: int = Field(default=2026, ge=1900, le=2100)
+
+
+class DiscoveryStart(CorpusScope):
+    max_model_calls: int = Field(default=1, ge=1, le=50)
+    papers_per_batch: int = Field(default=12, ge=4, le=30)
+    max_input_chars: int = Field(default=60000, ge=20000, le=200000)
 
 
 def _edition(session: Session, conference: str, year: int) -> ConferenceEdition:
@@ -172,16 +182,94 @@ def _run_dict(run: PipelineRun) -> dict:
     }
 
 
-def _latest_run(session: Session, conference: str, year: int) -> PipelineRun | None:
+def _latest_run(
+    session: Session,
+    conference: str,
+    year: int,
+    pipeline: str = "cognition_harness",
+) -> PipelineRun | None:
     return session.scalar(
         select(PipelineRun)
         .where(
-            PipelineRun.pipeline == "cognition_harness",
+            PipelineRun.pipeline == pipeline,
             PipelineRun.config["conference"].as_string() == conference.upper(),
             PipelineRun.config["year"].as_integer() == year,
         )
         .order_by(PipelineRun.created_at.desc())
     )
+
+
+def _event_dict(event: PipelineEvent) -> dict:
+    return {
+        "id": str(event.id),
+        "event_type": event.event_type,
+        "message": event.message,
+        "details": event.details,
+        "created_at": event.created_at,
+    }
+
+
+def _run_events(session: Session, run: PipelineRun | None) -> list[dict]:
+    if run is None:
+        return []
+    return [
+        _event_dict(event)
+        for event in session.scalars(
+            select(PipelineEvent)
+            .where(PipelineEvent.pipeline_run_id == run.id)
+            .order_by(PipelineEvent.created_at)
+        )
+    ]
+
+
+def _discovery_artifacts(
+    session: Session, conference: str, year: int, limit: int = 20
+) -> list[dict]:
+    artifacts = list(
+        session.scalars(
+            select(CognitionArtifact)
+            .where(
+                CognitionArtifact.artifact_type == "CORPUS_BATCH_OBSERVATION",
+                CognitionArtifact.generator_version == DISCOVERY_VERSION,
+                CognitionArtifact.scope["conference"].as_string()
+                == conference.upper(),
+                CognitionArtifact.scope["year"].as_integer() == year,
+            )
+            .order_by(CognitionArtifact.created_at.desc())
+            .limit(limit)
+        )
+    )
+    if not artifacts:
+        return []
+    sources: dict[uuid.UUID, list[dict]] = {}
+    for artifact_id, paper_id, title, arxiv_id in session.execute(
+        select(
+            CognitionArtifactSource.artifact_id,
+            Paper.id,
+            Paper.title,
+            Paper.arxiv_id,
+        )
+        .join(Paper, CognitionArtifactSource.paper_id == Paper.id)
+        .where(CognitionArtifactSource.artifact_id.in_([item.id for item in artifacts]))
+        .order_by(Paper.title)
+    ):
+        sources.setdefault(artifact_id, []).append(
+            {"paper_id": str(paper_id), "title": title, "arxiv_id": arxiv_id}
+        )
+    return [
+        {
+            "id": str(artifact.id),
+            "artifact_type": artifact.artifact_type,
+            "status": artifact.status,
+            "narrative": artifact.narrative,
+            "content": artifact.content,
+            "scope": artifact.scope,
+            "model": artifact.model,
+            "sources": sources.get(artifact.id, []),
+            "created_at": artifact.created_at,
+        }
+        for artifact in artifacts
+    ]
 
 
 @router.get("/overview")
@@ -192,29 +280,43 @@ def overview(
 ) -> dict:
     snapshot = _snapshot(session, conference, year)
     latest = _latest_run(session, conference, year)
-    events = []
-    if latest:
-        events = list(
-            session.scalars(
-                select(PipelineEvent)
-                .where(PipelineEvent.pipeline_run_id == latest.id)
-                .order_by(PipelineEvent.created_at)
+    discovery_run = _latest_run(
+        session, conference, year, pipeline="cognition_discovery"
+    )
+    paper_ids = _paper_ids(uuid.UUID(snapshot["edition_id"]))
+    discovery_covered = (
+        session.scalar(
+            select(func.count(func.distinct(CognitionArtifactSource.paper_id)))
+            .join(
+                CognitionArtifact,
+                CognitionArtifactSource.artifact_id == CognitionArtifact.id,
+            )
+            .where(
+                CognitionArtifactSource.paper_id.in_(paper_ids),
+                CognitionArtifact.artifact_type == "CORPUS_BATCH_OBSERVATION",
+                CognitionArtifact.generator_version == DISCOVERY_VERSION,
             )
         )
+        or 0
+    )
+    model_config = session.scalar(
+        select(ModelProviderConfig)
+        .where(
+            ModelProviderConfig.is_default.is_(True),
+            ModelProviderConfig.status == "ACTIVE",
+        )
+        .order_by(ModelProviderConfig.updated_at.desc())
+    )
+    model_ready = bool(model_config and get_secret(model_config.secret_ref))
     return {
         **snapshot,
         "harness_version": HARNESS_VERSION,
         "latest_run": _run_dict(latest) if latest else None,
-        "events": [
-            {
-                "id": str(event.id),
-                "event_type": event.event_type,
-                "message": event.message,
-                "details": event.details,
-                "created_at": event.created_at,
-            }
-            for event in events
-        ],
+        "discovery_run": _run_dict(discovery_run) if discovery_run else None,
+        "model_ready": model_ready,
+        "events": _run_events(session, latest),
+        "discovery_events": _run_events(session, discovery_run),
+        "artifacts": _discovery_artifacts(session, conference, year),
         "stages": [
             {
                 "id": "paper_memory",
@@ -233,10 +335,21 @@ def overview(
             {
                 "id": "corpus_discovery",
                 "name": "全语料自主发现",
-                "status": "NOT_IMPLEMENTED",
-                "ready": 0,
+                "status": (
+                    discovery_run.status
+                    if discovery_run
+                    and discovery_run.status in {"RUNNING", "STOP_REQUESTED"}
+                    else "COMPLETED"
+                    if discovery_covered
+                    and discovery_covered
+                    >= snapshot["coverage"]["paper_memories"]
+                    else "IN_PROGRESS"
+                    if discovery_covered
+                    else "READY"
+                ),
+                "ready": discovery_covered,
                 "total": snapshot["coverage"]["papers"],
-                "detail": "让模型从全量论文中生成临时研究议程，不预设方法类别。",
+                "detail": "按未覆盖论文记忆分批生成临时研究议程；每批结果都保存来源和缓存键。",
             },
             {
                 "id": "evidence_loops",
@@ -410,4 +523,136 @@ def prepare_harness(
         "status": "PREPARED",
         "message": "Harness 控制面已初始化；未调用模型。",
         "run": _run_dict(run),
+    }
+
+
+@router.post(
+    "/discovery/start",
+    dependencies=[Depends(require_local_action)],
+)
+def start_discovery(
+    payload: DiscoveryStart,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> dict:
+    snapshot = _snapshot(session, payload.conference, payload.year)
+    running = session.scalar(
+        select(PipelineRun)
+        .where(
+            PipelineRun.pipeline == "cognition_discovery",
+            PipelineRun.status.in_(["RUNNING", "STOP_REQUESTED"]),
+            PipelineRun.config["conference"].as_string()
+            == payload.conference.upper(),
+            PipelineRun.config["year"].as_integer() == payload.year,
+        )
+        .order_by(PipelineRun.created_at.desc())
+    )
+    if running:
+        raise HTTPException(status_code=409, detail="这个语料范围已有发现任务在运行")
+    model_config = session.scalar(
+        select(ModelProviderConfig)
+        .where(
+            ModelProviderConfig.is_default.is_(True),
+            ModelProviderConfig.status == "ACTIVE",
+        )
+        .order_by(ModelProviderConfig.updated_at.desc())
+    )
+    if model_config is None or not get_secret(model_config.secret_ref):
+        raise HTTPException(
+            status_code=409,
+            detail="默认模型尚未就绪，请先在“系统设置 → 模型配置”保存 API Key",
+        )
+    if snapshot["coverage"]["paper_memories"] == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="尚未建立论文认知缓存，请先初始化 Harness",
+        )
+    paper_ids = _paper_ids(uuid.UUID(snapshot["edition_id"]))
+    covered = (
+        session.scalar(
+            select(func.count(func.distinct(CognitionArtifactSource.paper_id)))
+            .join(
+                CognitionArtifact,
+                CognitionArtifactSource.artifact_id == CognitionArtifact.id,
+            )
+            .where(
+                CognitionArtifactSource.paper_id.in_(paper_ids),
+                CognitionArtifact.artifact_type == "CORPUS_BATCH_OBSERVATION",
+                CognitionArtifact.generator_version == DISCOVERY_VERSION,
+            )
+        )
+        or 0
+    )
+    if covered >= snapshot["coverage"]["paper_memories"]:
+        raise HTTPException(status_code=409, detail="当前可用论文记忆已全部完成发现覆盖")
+    now = datetime.now(UTC)
+    run = PipelineRun(
+        run_key=(
+            f"discovery-{payload.conference.lower()}-{payload.year}-"
+            f"{uuid.uuid4().hex[:8]}"
+        ),
+        pipeline="cognition_discovery",
+        status="RUNNING",
+        config={
+            **snapshot["scope"],
+            "model_config_id": str(model_config.id),
+            "model": model_config.model_name,
+            "max_model_calls": payload.max_model_calls,
+            "papers_per_batch": payload.papers_per_batch,
+            "max_input_chars": payload.max_input_chars,
+            "discovery_version": DISCOVERY_VERSION,
+        },
+        counters={
+            "model_calls": 0,
+            "artifacts": 0,
+            "papers_covered": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        },
+        started_at=now,
+    )
+    session.add(run)
+    session.commit()
+    background_tasks.add_task(run_corpus_discovery, run.id)
+    return {
+        "status": "RUNNING",
+        "run_id": str(run.id),
+        "message": (
+            f"已启动发现试运行：最多 {payload.max_model_calls} 次模型调用，"
+            f"每批最多 {payload.papers_per_batch} 篇论文。"
+        ),
+    }
+
+
+@router.post(
+    "/discovery/{run_id}/stop",
+    dependencies=[Depends(require_local_action)],
+)
+def stop_discovery(
+    run_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> dict:
+    run = session.get(PipelineRun, run_id)
+    if run is None or run.pipeline != "cognition_discovery":
+        raise HTTPException(status_code=404, detail="没有找到这个发现任务")
+    if run.status != "RUNNING":
+        return {
+            "status": run.status,
+            "message": "任务已不在运行，无需停止。",
+        }
+    run.status = "STOP_REQUESTED"
+    session.add(
+        PipelineEvent(
+            pipeline_run_id=run.id,
+            level="INFO",
+            event_type="DISCOVERY_STOP_REQUESTED",
+            message="已请求停止；当前模型调用完成后停止",
+            details={},
+        )
+    )
+    session.commit()
+    return {
+        "status": "STOP_REQUESTED",
+        "message": "已请求停止；当前模型调用完成后不会继续下一批。",
     }

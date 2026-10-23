@@ -264,7 +264,7 @@ a { color: inherit; }
 .agent-roles strong { font-size: 11px; }
 .agent-roles span { color: var(--green); font: 500 9px "DM Mono", monospace; }
 .agent-roles p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
-.cognition-cache, .cognition-events { margin-top: 18px; }
+.cognition-cache, .cognition-discovery, .cognition-results, .cognition-events { margin-top: 18px; }
 .cache-explanation { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 16px; background: var(--line); }
 .cache-explanation p { display: grid; gap: 6px; margin: 0; padding: 16px; background: #fafaf6; }
 .cache-explanation strong { font: 500 19px "DM Mono", monospace; }
@@ -275,6 +275,33 @@ a { color: inherit; }
 .cognition-events i { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--green); }
 .cognition-events p, .cognition-events strong, .cognition-events small { display: block; margin: 0; }
 .cognition-events small { margin-top: 4px; color: var(--muted); font: 500 9px "DM Mono", monospace; }
+.discovery-control { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) minmax(230px, .9fr); gap: 12px; align-items: end; margin-top: 20px; }
+.discovery-control label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.discovery-control input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid var(--line); color: var(--ink); background: white; }
+.discovery-control small { min-height: 30px; font-weight: 400; line-height: 1.5; }
+.discovery-action { display: grid; gap: 8px; }
+.discovery-action button { width: 100%; margin: 0; }
+.discovery-action > span { color: var(--muted); font: 500 9px/1.5 "DM Mono", monospace; }
+.discovery-trace { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px; margin-top: 18px; background: var(--line); }
+.discovery-trace > div { display: grid; grid-template-columns: 8px 1fr; gap: 9px; padding: 13px; background: #f6f6f0; }
+.discovery-trace i { width: 7px; height: 7px; margin-top: 3px; border-radius: 50%; background: var(--green); }
+.discovery-trace strong, .discovery-trace small { display: block; }
+.discovery-trace strong { font-size: 10px; }
+.discovery-trace small { margin-top: 4px; color: var(--muted); font: 500 8px "DM Mono", monospace; }
+.discovery-results { display: grid; gap: 16px; margin-top: 20px; }
+.discovery-artifact { padding: 19px; border: 1px solid var(--line); background: #f8f7f1; }
+.discovery-artifact header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font: 500 9px "DM Mono", monospace; }
+.discovery-artifact header span { padding: 4px 6px; color: #386149; background: #e3efe6; }
+.discovery-artifact header code { margin-left: auto; }
+.discovery-artifact > h4 { margin: 16px 0; font-size: 17px; line-height: 1.6; }
+.discovery-artifact > article { margin-top: 10px; padding: 14px; border-left: 3px solid var(--lime); background: white; }
+.discovery-artifact h5, .discovery-artifact p { margin: 0; }
+.discovery-artifact h5 { font-size: 14px; }
+.discovery-artifact p { margin-top: 7px; color: #4e5d5c; font-size: 12px; line-height: 1.75; }
+.discovery-artifact article small { display: block; margin-top: 8px; color: var(--muted); line-height: 1.55; }
+.discovery-artifact details { margin-top: 14px; color: var(--muted); font-size: 11px; }
+.artifact-sources { display: grid; gap: 7px; margin-top: 10px; }
+.artifact-sources a { color: var(--green); line-height: 1.5; }
 .model-config-grid { display: grid; grid-template-columns: minmax(290px, .7fr) minmax(0, 1.3fr); gap: 18px; }
 .provider-list { align-self: start; }
 .provider-card { width: 100%; display: grid; grid-template-columns: 9px 1fr auto; gap: 10px; align-items: center; padding: 15px 12px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
@@ -307,7 +334,7 @@ a { color: inherit; }
   .preferences-grid { grid-template-columns: 1fr; }
   .lineage-toolbar { grid-template-columns: 1fr 1fr; }
   .lineage-workspace { grid-template-columns: 1fr; }
-  .research-create-grid, .research-browser, .cognition-grid { grid-template-columns: 1fr; }
+  .research-create-grid, .research-browser, .cognition-grid, .discovery-control { grid-template-columns: 1fr; }
   .corpus-banner, .cache-explanation { grid-template-columns: 1fr; }
   .model-config-grid { grid-template-columns: 1fr; }
   .graph-panel { min-height: 560px; }

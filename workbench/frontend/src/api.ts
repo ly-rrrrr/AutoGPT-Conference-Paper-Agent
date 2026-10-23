@@ -301,11 +301,47 @@ export interface CognitionOverview {
     missing_local_document: number
   }
   latest_run: PipelineRun | null
+  discovery_run: PipelineRun | null
+  model_ready: boolean
   events: Array<{
     id: string
     event_type: string
     message: string
     details: Record<string, unknown>
+    created_at: string
+  }>
+  discovery_events: Array<{
+    id: string
+    event_type: string
+    message: string
+    details: Record<string, unknown>
+    created_at: string
+  }>
+  artifacts: Array<{
+    id: string
+    artifact_type: string
+    status: string
+    narrative: string | null
+    content: {
+      batch_summary?: string
+      observations?: Array<{
+        title: string
+        statement: string
+        why_investigate?: string
+        paper_ids?: string[]
+        alternative_explanations?: string[]
+        next_questions?: string[]
+      }>
+      research_agenda?: Array<{
+        question: string
+        rationale?: string
+        paper_ids?: string[]
+      }>
+      limitations?: string[]
+    }
+    scope: Record<string, unknown>
+    model: string | null
+    sources: Array<{ paper_id: string; title: string; arxiv_id: string | null }>
     created_at: string
   }>
   stages: Array<{
@@ -329,6 +365,25 @@ export function prepareCognitionHarness(conference = "CVPR", year = 2026) {
     method: "POST",
     body: JSON.stringify({ conference, year }),
   })
+}
+
+export interface CognitionDiscoveryInput {
+  conference: string
+  year: number
+  max_model_calls: number
+  papers_per_batch: number
+  max_input_chars: number
+}
+
+export function startCognitionDiscovery(payload: CognitionDiscoveryInput) {
+  return api<{ status: string; run_id: string; message: string }>("/api/cognition/discovery/start", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function stopCognitionDiscovery(runId: string) {
+  return api<{ status: string; message: string }>(`/api/cognition/discovery/${runId}/stop`, { method: "POST" })
 }
 
 export interface ModelProviderConfig {
