@@ -202,7 +202,7 @@ onUnmounted(clearPolling)
 
         <div class="discovery-control">
           <label>本轮最多调用模型
-            <input v-model.number="maxModelCalls" type="number" min="1" max="50" />
+            <input v-model.number="maxModelCalls" type="number" min="1" max="500" />
             <small>预算硬上限；建议第一次保持 1 次。</small>
           </label>
           <label>每批论文数
@@ -218,7 +218,7 @@ onUnmounted(clearPolling)
               v-if="!discoveryActive"
               class="primary-button"
               type="button"
-              :disabled="startingDiscovery || !data.model_ready || !data.coverage.paper_memories"
+              :disabled="startingDiscovery || !data.model_ready || !data.coverage.paper_memories || discoveryStage?.ready === discoveryStage?.total"
               @click="startDiscovery"
             >
               <PhPlay /> {{ startingDiscovery ? "正在启动" : `试运行：最多 ${estimatedPapers} 篇` }}
@@ -269,6 +269,7 @@ onUnmounted(clearPolling)
             </details>
           </section>
         </div>
+        <RouterLink v-if="data.artifacts.length" class="atlas-entry" to="/atlas">进入方法认知图谱，执行跨批次综合、反驳与发布 →</RouterLink>
       </article>
 
       <article v-if="data.events.length" class="panel cognition-events">

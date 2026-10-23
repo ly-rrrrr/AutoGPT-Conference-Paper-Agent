@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router"
 
 import AnalysisView from "./views/AnalysisView.vue"
+import AtlasView from "./views/AtlasView.vue"
 import CognitionView from "./views/CognitionView.vue"
 import DashboardView from "./views/DashboardView.vue"
 import KnowledgeView from "./views/KnowledgeView.vue"
@@ -24,8 +25,9 @@ export default createRouter({
     { path: "/runs", component: RunsView, meta: { title: "运行记录" } },
     { path: "/knowledge", component: KnowledgeView, meta: { title: "知识库" } },
     { path: "/lineage", component: LineageView, meta: { title: "相关工作谱系" } },
-    { path: "/research", component: ResearchView, meta: { title: "研究任务" } },
+    { path: "/research", component: ResearchView, meta: { title: "定向研究" } },
     { path: "/cognition", component: CognitionView, meta: { title: "认知运行" } },
+    { path: "/atlas", component: AtlasView, meta: { title: "方法认知图谱" } },
     { path: "/settings/models", component: ModelConfigView, meta: { title: "模型配置" } },
     { path: "/preferences", component: PreferencesView, meta: { title: "研究偏好" } },
   ],

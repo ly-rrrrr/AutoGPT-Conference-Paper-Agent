@@ -43,6 +43,7 @@ const sections = [
     icon: PhStrategy,
     items: [
       { label: "认知运行", to: "/cognition", icon: PhPulse },
+      { label: "方法认知图谱", to: "/atlas", icon: PhGitBranch },
       { label: "定向研究", to: "/research", icon: PhSparkle },
     ],
   },

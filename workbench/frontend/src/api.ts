@@ -386,6 +386,86 @@ export function stopCognitionDiscovery(runId: string) {
   return api<{ status: string; message: string }>(`/api/cognition/discovery/${runId}/stop`, { method: "POST" })
 }
 
+export interface MethodInsight {
+  id: string
+  status: string
+  title: string
+  claim: string
+  mechanism: string | null
+  problem_pressure: string | null
+  borrowed_idea: string | null
+  adaptation: string | null
+  domains: string[]
+  transfer_targets: string[]
+  counterargument: string | null
+  evidence_boundary: string | null
+  open_questions: string[]
+  confidence: number
+  sources: Array<{ paper_id: string; title: string; arxiv_id: string | null; stance: string }>
+  model: string | null
+  created_at: string
+}
+
+export interface AtlasOverview {
+  scope: { conference: string; year: number }
+  model_ready: boolean
+  discovery_artifacts: number
+  consumed_discovery_artifacts: number
+  remaining_discovery_artifacts: number
+  insights: number
+  challenged: number
+  published: number
+  domains: number
+  mechanisms: number
+  latest_run: PipelineRun | null
+  events: Array<{ id: string; event_type: string; message: string; details: Record<string, unknown>; created_at: string }>
+}
+
+export interface AtlasGraph {
+  nodes: Array<{ id: string; kind: string; label: string; artifact_id?: string; status?: string; confidence?: number }>
+  edges: Array<{ id: string; source: string; target: string; relation: string }>
+  insights: number
+}
+
+export function getAtlasOverview(conference = "CVPR", year = 2026) {
+  const params = new URLSearchParams({ conference, year: String(year) })
+  return api<AtlasOverview>(`/api/atlas/overview?${params}`)
+}
+
+export function getAtlasInsights(conference = "CVPR", year = 2026) {
+  const params = new URLSearchParams({ conference, year: String(year) })
+  return api<{ items: MethodInsight[]; total: number }>(`/api/atlas/insights?${params}`)
+}
+
+export function getAtlasGraph(conference = "CVPR", year = 2026) {
+  const params = new URLSearchParams({ conference, year: String(year) })
+  return api<AtlasGraph>(`/api/atlas/graph?${params}`)
+}
+
+export function startAtlasSynthesis(payload: {
+  conference: string
+  year: number
+  max_rounds: number
+  artifacts_per_round: number
+  max_input_chars: number
+}) {
+  return api<{ status: string; run_id: string; message: string }>("/api/atlas/synthesis/start", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function stopAtlasSynthesis(runId: string) {
+  return api<{ status: string; message: string }>(`/api/atlas/synthesis/${runId}/stop`, { method: "POST" })
+}
+
+export function updateMethodInsightStatus(insightId: string, status: string) {
+  return api<{ id: string; status: string }>(`/api/atlas/insights/${insightId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  })
+}
+
 export interface ModelProviderConfig {
   id: string
   name: string

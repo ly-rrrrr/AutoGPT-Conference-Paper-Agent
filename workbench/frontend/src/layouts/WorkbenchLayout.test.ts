@@ -21,6 +21,7 @@ describe("WorkbenchLayout", () => {
     expect(wrapper.text()).toContain("论文资产")
     expect(wrapper.text()).toContain("方法认知")
     expect(wrapper.text()).toContain("认知运行")
+    expect(wrapper.text()).toContain("方法认知图谱")
     expect(wrapper.text()).toContain("定向研究")
     expect(wrapper.text()).toContain("采集与分析")
     expect(wrapper.text()).toContain("知识库")

@@ -33,6 +33,7 @@ def test_schema_contains_each_bounded_domain():
         "cognition_paper_memories",
         "cognition_artifacts",
         "cognition_artifact_sources",
+        "cognition_artifact_dependencies",
     }
 
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.pipelines import require_local_action
 from app.cognition_discovery import DISCOVERY_VERSION, run_corpus_discovery
+from app.cognition_synthesis import SYNTHESIS_VERSION
 from app.cognition_workflow import prepare_control_state
 from app.database import get_session
 from app.models import (
@@ -38,7 +39,7 @@ class CorpusScope(BaseModel):
 
 
 class DiscoveryStart(CorpusScope):
-    max_model_calls: int = Field(default=1, ge=1, le=50)
+    max_model_calls: int = Field(default=1, ge=1, le=500)
     papers_per_batch: int = Field(default=12, ge=4, le=30)
     max_input_chars: int = Field(default=60000, ge=20000, le=200000)
 
@@ -299,6 +300,31 @@ def overview(
         )
         or 0
     )
+    insight_count = (
+        session.scalar(
+            select(func.count(CognitionArtifact.id)).where(
+                CognitionArtifact.artifact_type == "METHOD_INSIGHT",
+                CognitionArtifact.generator_version == SYNTHESIS_VERSION,
+                CognitionArtifact.scope["conference"].as_string()
+                == conference.upper(),
+                CognitionArtifact.scope["year"].as_integer() == year,
+            )
+        )
+        or 0
+    )
+    published_count = (
+        session.scalar(
+            select(func.count(CognitionArtifact.id)).where(
+                CognitionArtifact.artifact_type == "METHOD_INSIGHT",
+                CognitionArtifact.generator_version == SYNTHESIS_VERSION,
+                CognitionArtifact.status == "PUBLISHED",
+                CognitionArtifact.scope["conference"].as_string()
+                == conference.upper(),
+                CognitionArtifact.scope["year"].as_integer() == year,
+            )
+        )
+        or 0
+    )
     model_config = session.scalar(
         select(ModelProviderConfig)
         .where(
@@ -354,18 +380,18 @@ def overview(
             {
                 "id": "evidence_loops",
                 "name": "证据与反例回路",
-                "status": "NOT_IMPLEMENTED",
-                "ready": 0,
-                "total": 0,
-                "detail": "对候选洞见并行调查支持、反例和跨领域迁移。",
+                "status": "ACTIVE" if insight_count else "READY" if discovery_covered else "WAITING",
+                "ready": insight_count,
+                "total": max(1, snapshot["coverage"]["cognition_artifacts"]),
+                "detail": "Cartographer 提议、Challenger 独立反驳、Curator 修订并保留真实来源。",
             },
             {
                 "id": "living_atlas",
                 "name": "持续认知图谱",
-                "status": "NOT_IMPLEMENTED",
-                "ready": 0,
-                "total": 0,
-                "detail": "版本化合并洞见，并投影为方法、时间和领域视图。",
+                "status": "PUBLISHED" if published_count else "READY" if insight_count else "WAITING",
+                "ready": published_count,
+                "total": insight_count,
+                "detail": "把经反驳认知投影到问题压力、机制、领域和迁移方向，并支持人工发布。",
             },
         ],
         "roles": [

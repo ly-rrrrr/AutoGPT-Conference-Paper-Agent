@@ -573,6 +573,27 @@ class CognitionArtifactSource(Base):
     locator: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class CognitionArtifactDependency(Base):
+    __tablename__ = "cognition_artifact_dependencies"
+    __table_args__ = (
+        UniqueConstraint(
+            "artifact_id",
+            "depends_on_artifact_id",
+            "relation",
+            name="uq_cognition_artifact_dependency",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cognition_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    depends_on_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cognition_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    relation: Mapped[str] = mapped_column(String(40), index=True)
+
+
 class ModelProviderConfig(Base, TimestampMixin):
     __tablename__ = "model_provider_configs"
 
