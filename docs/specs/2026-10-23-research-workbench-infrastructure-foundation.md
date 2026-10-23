@@ -12,6 +12,8 @@
 
 Milvus 和 GROBID 都不是业务事实来源。删除它们的索引或解析产物后，系统应能依据 PostgreSQL 记录与保留的原始资产重建。
 
+外部聊天与 Embedding 请求统一使用工作台出站代理边界。Windows 默认自动读取当前用户的系统代理，显式 `WORKBENCH_OUTBOUND_PROXY_URL` 优先；本机 PostgreSQL、Milvus 与 GROBID 请求不经过该代理。
+
 ## 本机部署
 
 Docker Compose 运行：

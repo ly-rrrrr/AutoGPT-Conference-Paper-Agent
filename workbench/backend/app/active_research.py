@@ -25,6 +25,7 @@ from app.models import (
     ResearchBrief,
     ResearchEvidenceRef,
 )
+from app.network import outbound_proxy
 from app.secret_store import get_secret
 
 
@@ -291,7 +292,9 @@ class OpenAICompatibleResearchAdapter:
             }
         ]
         calls = 0
-        with httpx.Client(timeout=self.timeout_seconds) as client:
+        with httpx.Client(
+            timeout=self.timeout_seconds, proxy=outbound_proxy()
+        ) as client:
             while calls < max_calls:
                 payload = {
                     "model": self.provider.model_name,

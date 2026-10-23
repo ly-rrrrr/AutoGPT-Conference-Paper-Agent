@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     milvus_database: str = "default"
     milvus_collection_prefix: str = "research_workbench"
     milvus_timeout_seconds: float = 2
+    outbound_proxy_url: str | None = None
     max_pdf_bytes: int = 80 * 1024 * 1024
 
 

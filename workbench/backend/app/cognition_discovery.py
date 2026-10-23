@@ -21,6 +21,7 @@ from app.models import (
     PipelineEvent,
     PipelineRun,
 )
+from app.network import outbound_proxy
 from app.secret_store import get_secret
 
 
@@ -249,7 +250,7 @@ def _discover(config, api_key: str, packets: list[dict]) -> tuple[dict, dict]:
   "limitations": ["本批次不能回答什么"]
 }
 """.strip()
-    with httpx.Client(timeout=240) as client:
+    with httpx.Client(timeout=240, proxy=outbound_proxy()) as client:
         response = client.post(
             f"{config.base_url.rstrip('/')}/responses",
             headers={

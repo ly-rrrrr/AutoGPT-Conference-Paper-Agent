@@ -12,6 +12,7 @@ from app.models import (
     EmbeddingProviderConfig,
     VectorIndexRecord,
 )
+from app.network import outbound_proxy
 from app.secret_store import get_secret
 from app.vector_store import VectorStore, collection_name
 
@@ -41,6 +42,7 @@ def request_embeddings(
                 "dimensions": config.dimension,
             },
             timeout=timeout_seconds,
+            proxy=outbound_proxy(),
         )
         response.raise_for_status()
         payload = response.json()

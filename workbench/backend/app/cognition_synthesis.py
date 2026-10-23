@@ -19,6 +19,7 @@ from app.models import (
     PipelineEvent,
     PipelineRun,
 )
+from app.network import outbound_proxy
 from app.secret_store import get_secret
 
 
@@ -121,7 +122,7 @@ def _pack_artifacts(artifacts: list[CognitionArtifact], max_chars: int) -> list[
 
 
 def _call(config, api_key: str, instructions: str, payload: dict) -> tuple[dict, dict]:
-    with httpx.Client(timeout=300) as client:
+    with httpx.Client(timeout=300, proxy=outbound_proxy()) as client:
         response = client.post(
             f"{config.base_url.rstrip('/')}/responses",
             headers={
