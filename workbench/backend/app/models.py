@@ -502,6 +502,77 @@ class InsightProposal(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(40), default="CANDIDATE", index=True)
 
 
+class CognitionPaperMemory(Base, TimestampMixin):
+    __tablename__ = "cognition_paper_memories"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    analysis_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("paper_analyses.id", ondelete="SET NULL"), index=True
+    )
+    last_seen_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True
+    )
+    input_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    program_version: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    reuse_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class CognitionArtifact(Base, TimestampMixin):
+    __tablename__ = "cognition_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "artifact_type",
+            "input_fingerprint",
+            "generator_version",
+            name="uq_cognition_artifact_cache",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workflow_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True
+    )
+    supersedes_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cognition_artifacts.id", ondelete="SET NULL"), index=True
+    )
+    artifact_type: Mapped[str] = mapped_column(String(80), index=True)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    scope: Mapped[dict] = mapped_column(JSON, default=dict)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    narrative: Mapped[str | None] = mapped_column(Text)
+    generator: Mapped[str] = mapped_column(String(120))
+    generator_version: Mapped[str] = mapped_column(String(80))
+    model: Mapped[str | None] = mapped_column(String(160))
+    uncertainty: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CognitionArtifactSource(Base):
+    __tablename__ = "cognition_artifact_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "artifact_id", "paper_id", "stance", name="uq_cognition_artifact_source"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    artifact_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cognition_artifacts.id", ondelete="CASCADE"), index=True
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), index=True
+    )
+    analysis_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("paper_analyses.id", ondelete="SET NULL"), index=True
+    )
+    stance: Mapped[str] = mapped_column(String(40), index=True)
+    locator: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class ModelProviderConfig(Base, TimestampMixin):
     __tablename__ = "model_provider_configs"
 

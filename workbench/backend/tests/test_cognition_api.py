@@ -28,11 +28,19 @@ def test_preparing_same_corpus_twice_reuses_material_snapshot(client, seeded_db)
     assert first.status_code == 200
     assert first.json()["status"] == "PREPARED"
     assert first.json()["run"]["counters"]["model_calls"] == 0
+    assert first.json()["run"]["counters"]["paper_memory"] == {
+        "created": 2,
+        "reused": 0,
+        "invalidated": 0,
+        "missing_source": 1,
+    }
     assert second.status_code == 200
     assert second.json()["status"] == "REUSED"
     assert second.json()["run"]["id"] == first.json()["run"]["id"]
 
     overview = client.get("/api/cognition/overview?conference=ECCV&year=2026").json()
+    assert overview["coverage"]["paper_memories"] == 1
+    assert overview["stages"][0]["status"] == "CACHED"
     assert [event["event_type"] for event in overview["events"]] == [
         "CORPUS_SNAPSHOT_CREATED",
         "CACHE_PLAN_CREATED",

@@ -292,6 +292,8 @@ export interface CognitionOverview {
     paper_analyses: number
     likes: number
     local_documents: number
+    paper_memories: number
+    cognition_artifacts: number
   }
   gaps: {
     missing_arxiv: number

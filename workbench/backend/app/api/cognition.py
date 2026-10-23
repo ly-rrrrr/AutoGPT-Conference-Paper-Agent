@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.api.pipelines import require_local_action
 from app.database import get_session
+from app.cognition_workflow import prepare_control_state
 from app.models import (
+    CognitionArtifact,
+    CognitionPaperMemory,
     ConferenceEdition,
     DocumentAsset,
     ImpactSignal,
@@ -21,7 +24,8 @@ from app.models import (
 
 
 router = APIRouter(prefix="/api/cognition", tags=["cognition"])
-HARNESS_VERSION = "corpus-cognition-v1"
+HARNESS_VERSION = "corpus-cognition-v2"
+PAPER_MEMORY_VERSION = "paper-memory-v1"
 
 
 class CorpusScope(BaseModel):
@@ -45,6 +49,34 @@ def _paper_ids(edition_id: uuid.UUID):
     return select(Paper.id).where(Paper.conference_edition_id == edition_id)
 
 
+def _latest_analyses(session: Session, paper_ids) -> dict:
+    rows = session.execute(
+        select(
+            PaperAnalysis.id,
+            PaperAnalysis.paper_id,
+            PaperAnalysis.source_sha256,
+            PaperAnalysis.question_set_hash,
+            PaperAnalysis.analyzed_at,
+        )
+        .where(
+            PaperAnalysis.paper_id.in_(paper_ids),
+            PaperAnalysis.status == "SUCCESS",
+        )
+        .order_by(PaperAnalysis.paper_id, PaperAnalysis.analyzed_at.desc())
+    )
+    latest = {}
+    for analysis_id, paper_id, source_sha256, question_set_hash, _ in rows:
+        latest.setdefault(
+            paper_id,
+            {
+                "analysis_id": analysis_id,
+                "source_sha256": source_sha256,
+                "question_set_hash": question_set_hash,
+            },
+        )
+    return latest
+
+
 def _snapshot(session: Session, conference: str, year: int) -> dict:
     edition = _edition(session, conference, year)
     paper_ids = _paper_ids(edition.id)
@@ -58,26 +90,7 @@ def _snapshot(session: Session, conference: str, year: int) -> dict:
         )
         or 0
     )
-    analyses = list(
-        session.execute(
-            select(
-                PaperAnalysis.paper_id,
-                PaperAnalysis.source_sha256,
-                PaperAnalysis.question_set_hash,
-                PaperAnalysis.analyzed_at,
-            )
-            .where(
-                PaperAnalysis.paper_id.in_(paper_ids),
-                PaperAnalysis.status == "SUCCESS",
-            )
-            .order_by(PaperAnalysis.paper_id, PaperAnalysis.analyzed_at.desc())
-        )
-    )
-    latest_by_paper = {}
-    for paper_id, source_sha256, question_set_hash, _ in analyses:
-        latest_by_paper.setdefault(
-            paper_id, (source_sha256, question_set_hash)
-        )
+    latest_by_paper = _latest_analyses(session, paper_ids)
     likes = (
         session.scalar(
             select(func.count(func.distinct(ImpactSignal.paper_id))).where(
@@ -97,12 +110,31 @@ def _snapshot(session: Session, conference: str, year: int) -> dict:
         or 0
     )
     fingerprint_parts = [
-        f"{paper_id}:{analysis[0]}:{analysis[1]}"
+        f"{paper_id}:{analysis['source_sha256']}:{analysis['question_set_hash']}"
         for paper_id, analysis in sorted(
             latest_by_paper.items(), key=lambda item: str(item[0])
         )
     ]
     fingerprint = hashlib.sha256("\n".join(fingerprint_parts).encode()).hexdigest()
+    memory_count = (
+        session.scalar(
+            select(func.count(CognitionPaperMemory.id)).where(
+                CognitionPaperMemory.paper_id.in_(paper_ids),
+                CognitionPaperMemory.status == "SOURCE_READY",
+                CognitionPaperMemory.program_version == PAPER_MEMORY_VERSION,
+            )
+        )
+        or 0
+    )
+    artifact_count = (
+        session.scalar(
+            select(func.count(CognitionArtifact.id)).where(
+                CognitionArtifact.scope["conference"].as_string() == edition.conference,
+                CognitionArtifact.scope["year"].as_integer() == edition.year,
+            )
+        )
+        or 0
+    )
     return {
         "scope": {"conference": edition.conference, "year": edition.year},
         "edition_id": str(edition.id),
@@ -112,6 +144,8 @@ def _snapshot(session: Session, conference: str, year: int) -> dict:
             "paper_analyses": len(latest_by_paper),
             "likes": likes,
             "local_documents": documents,
+            "paper_memories": memory_count,
+            "cognition_artifacts": artifact_count,
         },
         "gaps": {
             "missing_arxiv": total - arxiv,
@@ -185,8 +219,14 @@ def overview(
             {
                 "id": "paper_memory",
                 "name": "论文认知缓存",
-                "status": "SOURCE_READY" if snapshot["coverage"]["paper_analyses"] else "BLOCKED",
-                "ready": snapshot["coverage"]["paper_analyses"],
+                "status": (
+                    "CACHED"
+                    if snapshot["coverage"]["paper_memories"]
+                    else "SOURCE_READY"
+                    if snapshot["coverage"]["paper_analyses"]
+                    else "BLOCKED"
+                ),
+                "ready": snapshot["coverage"]["paper_memories"],
                 "total": snapshot["coverage"]["papers"],
                 "detail": "复用已有逐篇 AI 问答；输入不变时不重复调用模型。",
             },
@@ -269,6 +309,73 @@ def prepare_harness(
     )
     session.add(run)
     session.flush()
+    edition = _edition(session, payload.conference, payload.year)
+    paper_ids = list(session.scalars(_paper_ids(edition.id)))
+    latest_analyses = _latest_analyses(
+        session, select(Paper.id).where(Paper.conference_edition_id == edition.id)
+    )
+    existing = {
+        memory.paper_id: memory
+        for memory in session.scalars(
+            select(CognitionPaperMemory).where(
+                CognitionPaperMemory.paper_id.in_(paper_ids)
+            )
+        )
+    }
+    memory_counts = {
+        "created": 0,
+        "reused": 0,
+        "invalidated": 0,
+        "missing_source": 0,
+    }
+    for paper_id in paper_ids:
+        analysis = latest_analyses.get(paper_id)
+        source_key = (
+            f"{paper_id}:{analysis['source_sha256']}:{analysis['question_set_hash']}:{PAPER_MEMORY_VERSION}"
+            if analysis
+            else f"{paper_id}:missing:{PAPER_MEMORY_VERSION}"
+        )
+        fingerprint = hashlib.sha256(source_key.encode()).hexdigest()
+        status = "SOURCE_READY" if analysis else "MISSING_SOURCE"
+        memory = existing.get(paper_id)
+        if memory is None:
+            session.add(
+                CognitionPaperMemory(
+                    paper_id=paper_id,
+                    analysis_id=analysis["analysis_id"] if analysis else None,
+                    last_seen_run_id=run.id,
+                    input_fingerprint=fingerprint,
+                    program_version=PAPER_MEMORY_VERSION,
+                    status=status,
+                    reuse_count=0,
+                )
+            )
+            memory_counts["created"] += 1
+        elif memory.input_fingerprint == fingerprint:
+            memory.last_seen_run_id = run.id
+            memory.reuse_count += 1
+            memory_counts["reused"] += 1
+        else:
+            memory.analysis_id = analysis["analysis_id"] if analysis else None
+            memory.last_seen_run_id = run.id
+            memory.input_fingerprint = fingerprint
+            memory.program_version = PAPER_MEMORY_VERSION
+            memory.status = status
+            memory_counts["invalidated"] += 1
+        if analysis is None:
+            memory_counts["missing_source"] += 1
+    run.counters = {**run.counters, "paper_memory": memory_counts}
+    session.flush()
+    refreshed_snapshot = _snapshot(session, payload.conference, payload.year)
+    control_state = prepare_control_state(refreshed_snapshot)
+    run.config = {
+        **run.config,
+        "control_state": {
+            "stage": control_state["stage"],
+            "next_stage": control_state["next_stage"],
+            "decisions": control_state["decisions"],
+        },
+    }
     session.add_all(
         [
             PipelineEvent(
@@ -282,10 +389,11 @@ def prepare_harness(
                 pipeline_run_id=run.id,
                 level="INFO",
                 event_type="CACHE_PLAN_CREATED",
-                message="已有逐篇分析已登记为可复用输入",
+                message="逐篇分析已登记为版本化论文记忆",
                 details={
                     "reusable_analyses": snapshot["coverage"]["paper_analyses"],
                     "material_fingerprint": snapshot["material_fingerprint"],
+                    **memory_counts,
                 },
             ),
             PipelineEvent(
@@ -293,7 +401,7 @@ def prepare_harness(
                 level="INFO",
                 event_type="HARNESS_PREPARED",
                 message="Harness 控制面已初始化；本步骤没有调用模型",
-                details={"next_stage": "corpus_discovery"},
+                details=run.config["control_state"],
             ),
         ]
     )

@@ -107,7 +107,7 @@ onMounted(load)
       <article class="panel cognition-cache">
         <div class="panel__heading"><div><p class="page-kicker">TOKEN ECONOMY</p><h3>已有结果只读一次，后续按指纹复用</h3></div><PhCheckCircle :size="22" /></div>
         <div class="cache-explanation">
-          <p><strong>{{ data.coverage.paper_analyses.toLocaleString() }} 篇</strong><span>现有逐篇 AI 问答可直接成为第一轮论文记忆，不重新生成。</span></p>
+          <p><strong>{{ data.coverage.paper_memories.toLocaleString() }} 篇</strong><span>现有逐篇 AI 问答已登记为版本化论文记忆，不重新生成。</span></p>
           <p><strong>0 次</strong><span>“初始化 / 刷新 Harness”只建立语料快照和缓存计划，不调用模型。</span></p>
           <p><strong>按变化失效</strong><span>只有论文材料、分析版本或认知程序版本变化时，相关结果才重新计算。</span></p>
         </div>
