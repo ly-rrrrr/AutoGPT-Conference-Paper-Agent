@@ -93,12 +93,73 @@ export interface InfrastructureOverview {
   }
   jobs: { by_status: Record<string, number> }
 }
+export interface StorageOverview {
+  asset_root: string
+  source: string
+  exists: boolean
+  total_bytes: number
+  used_bytes: number
+  free_bytes: number
+  recommended_free_bytes: number
+  capacity_status: "READY" | "LOW"
+  config_path: string
+  registered_asset_bytes: number
+  registered_assets: number
+  message?: string
+}
+export interface CorpusStatus {
+  conference: string
+  year: number
+  total: number
+  source_ready: number
+  pdf_available: number
+  parsed: number
+  failed: number
+  vectorized: number
+  jobs: Record<string, number>
+}
+export interface CorpusAction {
+  status: string
+  message: string
+  queued?: number
+  resumed?: number
+  paused?: number
+}
 export function getPreferences() { return api<Preferences>("/api/preferences") }
 export function addInterest(kind: "interest" | "keyword", value: string, weight = 1) { return api<PreferenceItem>("/api/preferences/interests", { method: "POST", body: JSON.stringify({ kind, value, weight }) }) }
 export function deleteInterest(id: string) { return api<void>(`/api/preferences/interests/${id}`, { method: "DELETE" }) }
 export function updateWeights(weights: Record<string, number>) { return api<Record<string, number>>("/api/preferences/weights", { method: "PUT", body: JSON.stringify(weights) }) }
 export function getDocuments() { return api<{ summary: Record<string, number>; total: number; items: DocumentRecord[] }>("/api/knowledge/documents") }
 export function getInfrastructureOverview() { return api<InfrastructureOverview>("/api/infrastructure/overview") }
+export function getStorageOverview() { return api<StorageOverview>("/api/infrastructure/storage") }
+export function updateStorage(assetRoot: string) {
+  return api<StorageOverview>("/api/infrastructure/storage", {
+    method: "PUT",
+    body: JSON.stringify({ asset_root: assetRoot }),
+  })
+}
+export function getCorpusStatus(conference = "CVPR", year = 2026) {
+  const params = new URLSearchParams({ conference, year: String(year) })
+  return api<CorpusStatus>(`/api/infrastructure/corpus/status?${params}`)
+}
+export function startCorpusBuild(conference = "CVPR", year = 2026, maxPapers = 5000) {
+  return api<CorpusAction>("/api/infrastructure/corpus/start", {
+    method: "POST",
+    body: JSON.stringify({ conference, year, max_papers: maxPapers }),
+  })
+}
+export function pauseCorpusBuild(conference = "CVPR", year = 2026) {
+  return api<CorpusAction>("/api/infrastructure/corpus/pause", {
+    method: "POST",
+    body: JSON.stringify({ conference, year, max_papers: 5000 }),
+  })
+}
+export function resumeCorpusBuild(conference = "CVPR", year = 2026) {
+  return api<CorpusAction>("/api/infrastructure/corpus/resume", {
+    method: "POST",
+    body: JSON.stringify({ conference, year, max_papers: 5000 }),
+  })
+}
 export function startVectorIndex(maxChunks = 500, batchSize = 32) {
   return api<{ status: string; run_id: string; message: string }>("/api/infrastructure/index/start", {
     method: "POST",

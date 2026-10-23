@@ -58,6 +58,8 @@ a { color: inherit; }
 .metric small { color: var(--muted); }
 .metric--accent { color: #e9f1e8; background: var(--green); border-color: var(--green); }
 .metric--accent span, .metric--accent small, .metric--accent > svg { color: #cbded8; }
+.metric--warning { border-color: #d7a49a; background: #fff5f1; }
+.metric--warning strong { color: #963f31; }
 .dashboard-grid, .detail-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; }
 .panel { padding: 25px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); }
 .panel-grid { display: grid; gap: 18px; margin-bottom: 18px; }
@@ -121,6 +123,15 @@ a { color: inherit; }
 .operations-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; }
 .operation-form label { display: grid; gap: 7px; margin-top: 20px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .operation-form input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 3px; background: #fff; }
+.storage-form label, .corpus-fields label { display: grid; gap: 7px; margin-top: 20px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.storage-form input, .corpus-fields input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink); background: #fff; }
+.storage-form code { color: var(--green); }
+.corpus-control { margin-bottom: 18px; }
+.corpus-fields { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 14px; }
+.pipeline-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 20px; background: var(--line); border: 1px solid var(--line); }
+.pipeline-steps div { min-height: 150px; display: grid; align-content: start; gap: 12px; padding: 18px; background: var(--paper); }
+.pipeline-steps strong { color: var(--green); }
+.pipeline-steps span { color: var(--muted); font-size: 12px; line-height: 1.7; }
 .operation-form small { font-weight: 400; }
 .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .primary-button, .danger-button, .quiet-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 15px; border: 1px solid transparent; border-radius: 3px; cursor: pointer; }

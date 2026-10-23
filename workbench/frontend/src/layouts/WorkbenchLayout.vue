@@ -16,6 +16,7 @@ import {
   PhPulse,
   PhStrategy,
   PhSparkle,
+  PhHardDrives,
 } from "@phosphor-icons/vue"
 import { computed, ref } from "vue"
 import { useRoute } from "vue-router"
@@ -58,7 +59,10 @@ const sections = [
   {
     label: "知识库",
     icon: PhDatabase,
-    items: [{ label: "文档资产", to: "/knowledge", icon: PhDatabase }],
+    items: [
+      { label: "文档资产", to: "/knowledge", icon: PhDatabase },
+      { label: "批量资产建设", to: "/knowledge/build", icon: PhHardDrives },
+    ],
   },
   {
     label: "个性化",
@@ -71,6 +75,7 @@ const sections = [
     items: [
       { label: "模型配置", to: "/settings/models", icon: PhKey },
       { label: "Embedding 配置", to: "/settings/embeddings", icon: PhDatabase },
+      { label: "存储配置", to: "/settings/storage", icon: PhHardDrives },
     ],
   },
 ]

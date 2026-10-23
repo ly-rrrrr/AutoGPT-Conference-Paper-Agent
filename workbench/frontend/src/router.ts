@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from "vue-router"
 import AnalysisView from "./views/AnalysisView.vue"
 import AtlasView from "./views/AtlasView.vue"
 import CognitionView from "./views/CognitionView.vue"
+import CorpusBuildView from "./views/CorpusBuildView.vue"
 import DashboardView from "./views/DashboardView.vue"
 import EmbeddingConfigView from "./views/EmbeddingConfigView.vue"
 import KnowledgeView from "./views/KnowledgeView.vue"
@@ -14,6 +15,7 @@ import PreferencesView from "./views/PreferencesView.vue"
 import ResearchView from "./views/ResearchView.vue"
 import ModelConfigView from "./views/ModelConfigView.vue"
 import RunsView from "./views/RunsView.vue"
+import StorageConfigView from "./views/StorageConfigView.vue"
 
 export default createRouter({
   history: createWebHistory(),
@@ -25,12 +27,14 @@ export default createRouter({
     { path: "/pipelines/analysis", component: AnalysisView, meta: { title: "论文分析" } },
     { path: "/runs", component: RunsView, meta: { title: "运行记录" } },
     { path: "/knowledge", component: KnowledgeView, meta: { title: "知识库" } },
+    { path: "/knowledge/build", component: CorpusBuildView, meta: { title: "批量资产建设" } },
     { path: "/lineage", component: LineageView, meta: { title: "相关工作谱系" } },
     { path: "/research", component: ResearchView, meta: { title: "定向研究" } },
     { path: "/cognition", component: CognitionView, meta: { title: "认知运行" } },
     { path: "/atlas", component: AtlasView, meta: { title: "方法认知图谱" } },
     { path: "/settings/models", component: ModelConfigView, meta: { title: "模型配置" } },
     { path: "/settings/embeddings", component: EmbeddingConfigView, meta: { title: "Embedding 配置" } },
+    { path: "/settings/storage", component: StorageConfigView, meta: { title: "存储配置" } },
     { path: "/preferences", component: PreferencesView, meta: { title: "研究偏好" } },
   ],
 })

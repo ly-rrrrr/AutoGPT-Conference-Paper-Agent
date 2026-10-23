@@ -22,15 +22,17 @@ def enqueue_run(
     pipeline: str,
     config: dict,
     max_attempts: int = 2,
+    deduplicate: bool = True,
 ) -> PipelineRun:
-    active = session.scalar(
-        select(PipelineRun).where(
-            PipelineRun.run_key == run_key,
-            PipelineRun.status.in_(["QUEUED", "RUNNING"]),
+    if deduplicate:
+        active = session.scalar(
+            select(PipelineRun).where(
+                PipelineRun.run_key == run_key,
+                PipelineRun.status.in_(["QUEUED", "RUNNING"]),
+            )
         )
-    )
-    if active is not None:
-        return active
+        if active is not None:
+            return active
     now = datetime.now(UTC)
     run = PipelineRun(
         run_key=run_key,

@@ -59,6 +59,7 @@ async function startIndexing() {
         <p class="lede">PDF 是原始资产，GROBID 负责结构化，PostgreSQL 保存事实与版本，Milvus 保存可重建的检索索引。</p>
       </div>
       <div class="detail-actions">
+        <RouterLink to="/knowledge/build">批量资产建设</RouterLink>
         <RouterLink to="/settings/embeddings">配置 Embedding</RouterLink>
         <button class="quiet-button" type="button" @click="load">刷新状态</button>
         <button class="primary-button" type="button" :disabled="!infrastructure?.vectors.embedding_ready || indexing" @click="startIndexing">{{ indexing ? "正在排队" : "增量建立索引" }}</button>

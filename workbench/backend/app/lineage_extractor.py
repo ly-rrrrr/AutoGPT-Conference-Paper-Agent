@@ -14,6 +14,7 @@ from app.database import session_scope
 from app.lineage_parser import parse_grobid_tei
 from app.lineage_service import EXTRACTOR, EXTRACTOR_VERSION, ingest_lineage
 from app.models import DocumentAsset, Paper, PipelineRun
+from app.storage import get_asset_root
 
 
 TRUSTED_PDF_HOSTS = {
@@ -137,8 +138,10 @@ def _grobid_tei(pdf_path: Path, settings: Settings) -> str:
 
 
 def extract_lineage(session: Session, paper: Paper, settings: Settings | None = None) -> dict:
+    explicit_settings = settings
     settings = settings or get_settings()
-    paper_root = settings.asset_root.resolve() / "papers" / str(paper.id)
+    asset_root = explicit_settings.asset_root.resolve() if explicit_settings else get_asset_root()
+    paper_root = asset_root / "papers" / str(paper.id)
     pdf_path = paper_root / "source.pdf"
     pdf_asset = _asset(session, paper.id, "pdf")
     if pdf_path.is_file():
