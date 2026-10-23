@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     asset_root: Path = WORKBENCH_ROOT / "data"
     grobid_url: str = "http://127.0.0.1:8070"
     grobid_timeout_seconds: float = 180
+    milvus_uri: str = "http://127.0.0.1:19530"
+    milvus_token: str | None = None
+    milvus_database: str = "default"
+    milvus_collection_prefix: str = "research_workbench"
+    milvus_timeout_seconds: float = 2
     max_pdf_bytes: int = 80 * 1024 * 1024
 
 

@@ -16,6 +16,8 @@ from app.api.lineage import router as lineage_router
 from app.api.runs import router as runs_router
 from app.database import database_ready
 from app.config import get_settings
+from app.lineage_extractor import grobid_ready
+from app.vector_store import milvus_ready
 
 
 def create_app() -> FastAPI:
@@ -35,10 +37,14 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        ready = database_ready()
+        database = database_ready()
+        milvus = milvus_ready()
+        grobid = grobid_ready()
         return {
-            "status": "ok" if ready else "degraded",
-            "database": "ready" if ready else "unavailable",
+            "status": "ok" if database and milvus and grobid else "degraded",
+            "database": "ready" if database else "unavailable",
+            "milvus": "ready" if milvus else "unavailable",
+            "grobid": "ready" if grobid else "unavailable",
         }
 
     frontend = get_settings().frontend_dist

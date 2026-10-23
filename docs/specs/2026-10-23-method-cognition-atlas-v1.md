@@ -97,7 +97,7 @@
 - PDF 与章节证据检索；
 - PaperQA2 科学文献研究；
 - OpenAlex / Semantic Scholar 元数据与引用遍历；
-- pgvector 语义候选召回；
+- Milvus 语义候选召回；
 - 统计聚合与时间切片；
 - GraphRAG 社区和全局查询候选；
 - 用户关注方向、近期工作和修订记录。

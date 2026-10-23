@@ -18,7 +18,7 @@ Stars 为 2026-10-23 调查时的近似值，只作为社区验证信号之一�
 | 语义程序与优化 | [DSPy](https://github.com/stanfordnlp/dspy) | 38.6k | MIT | 用声明式签名和可优化程序代替大量脆弱提示词，适合方法认知抽取、洞察提议与证据批判模块。确定进入 PoC。 |
 | 持久化 Agent 编排 | [LangGraph](https://github.com/langchain-ai/langgraph) | 41.5k | MIT | 持久状态、流式输出、调试和人工介入成熟，但与现有 AutoGPT 执行层重叠。暂不作为首个运行时；只有 AutoGPT 无法承载研究循环时再做对照 PoC。 |
 | 语料级图与社区综合 | [Microsoft GraphRAG](https://github.com/microsoft/graphrag) | 36.4k | MIT | 适合知识图谱、社区层级和全局查询。保留为语料级综合适配器候选，不采用其通用实体关系作为本项目方法语义真相。 |
-| 向量检索 | [pgvector](https://github.com/pgvector/pgvector) | 23k+ | PostgreSQL License | 与现有 PostgreSQL 边界完全一致，承担证据、研究制品和方法叙述的候选召回；相似度只用于发现候选。 |
+| 向量检索 | [Milvus](https://github.com/milvus-io/milvus) | 40k+ | Apache-2.0 | 用户确定采用独立 Milvus 服务，承担论文、段落和未来图片向量的候选召回；PostgreSQL 继续保存业务事实与索引来源。相似度只用于发现候选。 |
 | 语义编码与重排 | [Sentence Transformers](https://github.com/huggingface/sentence-transformers) | 19k+ | Apache-2.0 | 支持语义相似、检索、聚类和 reranker。作为可替换本地模型适配器，不把特定模型写入领域数据结构。 |
 | 学术元数据 | [OpenAlex](https://help.openalex.org/api/) / [Semantic Scholar Academic Graph](https://api.semanticscholar.org/api-docs/) | API | 各自条款 | 用于身份、引用和主题事实补全，不负责判断思想继承或方法迁移。 |
 
@@ -39,6 +39,10 @@ AutoGPT 继续承担外层任务提交、模型凭证、并发、断点和长任
 ### GraphRAG 只做语料级候选综合
 
 GraphRAG 的社区和全局摘要可帮助发现会议年度的潜在结构，但输出只能成为 `InsightProposal`。只有经过原文证据、反例搜索与来源范围说明后，才能发布为 `PublishedInsight`。
+
+### Milvus 作为独立向量服务
+
+Milvus 通过可替换适配器接入，按论文、文本片段和图片等语义粒度分 collection。PostgreSQL 保存稳定 ID、来源哈希、嵌入模型和索引版本，Milvus 只保存可重建向量与最小过滤字段。原先的 pgvector 候选不再作为当前实施方案。
 
 ### 暂不引入第二套编排运行时
 

@@ -25,6 +25,8 @@ def startup_actions(probe) -> list[str]:
     actions = []
     if not probe.database_running():
         actions.append("compose_up_db")
+    if not probe.milvus_running():
+        actions.append("compose_up_milvus_background")
     if not probe.grobid_running():
         actions.append("compose_up_grobid_background")
     if not probe.frontend_ready():
@@ -79,6 +81,16 @@ class LocalProbe:
         except (OSError, RuntimeError):
             return False
 
+    def milvus_running(self) -> bool:
+        try:
+            output = run(
+                ["docker", "compose", "-f", str(COMPOSE_FILE), "ps", "--status", "running", "--services"],
+                WORKBENCH_ROOT,
+            )
+            return "milvus" in output.split()
+        except (OSError, RuntimeError):
+            return False
+
 
 def workbench_is_running() -> bool:
     try:
@@ -95,7 +107,7 @@ def ensure_backend() -> None:
         print("[准备] 创建工作台 Python 环境…", flush=True)
         run([sys.executable, "-m", "venv", str(VENV_ROOT)])
     check = subprocess.run(
-        [str(VENV_PYTHON), "-c", "import fastapi, httpx, keyring, langgraph, sqlalchemy, uvicorn, alembic, psycopg"],
+        [str(VENV_PYTHON), "-c", "import fastapi, httpx, keyring, langgraph, pymilvus, sqlalchemy, uvicorn, alembic, psycopg"],
         capture_output=True,
     )
     if check.returncode:
@@ -140,6 +152,24 @@ def start_grobid_in_background() -> None:
         )
     print(
         f"[后台] 正在准备 GROBID；首次下载不会阻塞网页。日志：{log_path}",
+        flush=True,
+    )
+
+
+def start_milvus_in_background() -> None:
+    runtime_root = WORKBENCH_ROOT / "data" / "runtime"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    log_path = runtime_root / "milvus-startup.log"
+    with log_path.open("a", encoding="utf-8") as log:
+        subprocess.Popen(
+            ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "milvus"],
+            cwd=WORKBENCH_ROOT,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    print(
+        f"[后台] 正在准备 Milvus 向量服务；首次下载不会阻塞网页。日志：{log_path}",
         flush=True,
     )
 
@@ -204,6 +234,8 @@ def main() -> int:
         ensure_docker()
         print("工作台已经运行，正在打开浏览器。", flush=True)
         webbrowser.open(URL)
+        if not LocalProbe().milvus_running():
+            start_milvus_in_background()
         if not LocalProbe().grobid_running():
             start_grobid_in_background()
         return 0
@@ -215,6 +247,8 @@ def main() -> int:
     if "compose_up_db" in actions:
         print("[1/5] 启动 PostgreSQL…", flush=True)
         run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "db"], WORKBENCH_ROOT)
+    if "compose_up_milvus_background" in actions:
+        start_milvus_in_background()
     if "compose_up_grobid_background" in actions:
         start_grobid_in_background()
     wait_for_database()
@@ -224,7 +258,7 @@ def main() -> int:
     run([str(VENV_PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"], BACKEND_ROOT, env)
     print(f"[4/5] 同步已有论文资产：{source_root()}", flush=True)
     sync_assets(env)
-    print("[5/5] 工作台已就绪。GROBID 首次启动可能仍在加载；谱系页面会显示其状态。", flush=True)
+    print("[5/5] 工作台已就绪。Milvus 与 GROBID 首次启动可能仍在后台下载和加载。", flush=True)
     threading.Timer(1.2, lambda: webbrowser.open(URL)).start()
     return subprocess.call(
         [str(VENV_PYTHON), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8767"],
