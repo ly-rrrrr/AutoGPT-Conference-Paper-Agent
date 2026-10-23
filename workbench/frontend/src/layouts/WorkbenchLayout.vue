@@ -41,7 +41,10 @@ const sections = [
   {
     label: "方法认知",
     icon: PhStrategy,
-    items: [{ label: "研究任务", to: "/research", icon: PhSparkle }],
+    items: [
+      { label: "认知运行", to: "/cognition", icon: PhPulse },
+      { label: "定向研究", to: "/research", icon: PhSparkle },
+    ],
   },
   {
     label: "采集与分析",

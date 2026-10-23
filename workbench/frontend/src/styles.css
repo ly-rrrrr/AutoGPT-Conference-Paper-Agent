@@ -244,6 +244,37 @@ a { color: inherit; }
 .research-timeline strong, .research-timeline small { display: block; }
 .research-timeline strong { font-size: 11px; }
 .research-timeline small { margin-top: 4px; color: var(--muted); font: 500 9px "DM Mono", monospace; }
+.corpus-banner { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 18px; border: 1px solid var(--line); background: #f5f5ef; }
+.corpus-banner > div { display: grid; gap: 5px; padding: 14px; border-right: 1px solid var(--line); }
+.corpus-banner > div:last-child { border: 0; }
+.corpus-banner span { color: var(--muted); font-size: 10px; }
+.corpus-banner strong, .corpus-banner code { font: 500 12px "DM Mono", monospace; }
+.cognition-metrics { margin-bottom: 18px; }
+.cognition-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); gap: 18px; }
+.panel-intro { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.harness-stages { margin-top: 18px; border-top: 1px solid var(--line); }
+.harness-stage { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.harness-stage > span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--green); font: 500 10px "DM Mono", monospace; }
+.harness-stage strong, .harness-stage p { display: block; margin: 0; }
+.harness-stage p { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.harness-stage code { padding: 4px 6px; color: #76572a; background: #f4ead0; font-size: 9px; }
+.harness-stage code[data-status="SOURCE_READY"] { color: #386149; background: #e3efe6; }
+.agent-roles { display: grid; gap: 10px; margin-top: 15px; }
+.agent-roles > div { display: grid; grid-template-columns: 120px 110px 1fr; gap: 10px; padding: 12px; background: #f4f4ee; }
+.agent-roles strong { font-size: 11px; }
+.agent-roles span { color: var(--green); font: 500 9px "DM Mono", monospace; }
+.agent-roles p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.cognition-cache, .cognition-events { margin-top: 18px; }
+.cache-explanation { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 16px; background: var(--line); }
+.cache-explanation p { display: grid; gap: 6px; margin: 0; padding: 16px; background: #fafaf6; }
+.cache-explanation strong { font: 500 19px "DM Mono", monospace; }
+.cache-explanation span { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.cognition-warning { display: flex; gap: 10px; margin-top: 14px; padding: 12px 14px; color: #6b5828; background: #f7f0dc; font-size: 11px; line-height: 1.6; }
+.cognition-warning svg { flex: 0 0 auto; }
+.cognition-events > div:not(.panel__heading) { display: grid; grid-template-columns: 10px 1fr; gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cognition-events i { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--green); }
+.cognition-events p, .cognition-events strong, .cognition-events small { display: block; margin: 0; }
+.cognition-events small { margin-top: 4px; color: var(--muted); font: 500 9px "DM Mono", monospace; }
 .model-config-grid { display: grid; grid-template-columns: minmax(290px, .7fr) minmax(0, 1.3fr); gap: 18px; }
 .provider-list { align-self: start; }
 .provider-card { width: 100%; display: grid; grid-template-columns: 9px 1fr auto; gap: 10px; align-items: center; padding: 15px 12px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
@@ -276,7 +307,8 @@ a { color: inherit; }
   .preferences-grid { grid-template-columns: 1fr; }
   .lineage-toolbar { grid-template-columns: 1fr 1fr; }
   .lineage-workspace { grid-template-columns: 1fr; }
-  .research-create-grid, .research-browser { grid-template-columns: 1fr; }
+  .research-create-grid, .research-browser, .cognition-grid { grid-template-columns: 1fr; }
+  .corpus-banner, .cache-explanation { grid-template-columns: 1fr; }
   .model-config-grid { grid-template-columns: 1fr; }
   .graph-panel { min-height: 560px; }
   .lineage-canvas { height: 470px; }

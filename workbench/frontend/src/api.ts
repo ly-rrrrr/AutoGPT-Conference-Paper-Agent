@@ -282,6 +282,53 @@ export function startResearchBrief(id: string) {
   return api<{ status: string; run_id: string; message: string }>(`/api/research/briefs/${id}/run`, { method: "POST" })
 }
 
+export interface CognitionOverview {
+  scope: { conference: string; year: number }
+  harness_version: string
+  material_fingerprint: string
+  coverage: {
+    papers: number
+    arxiv_links: number
+    paper_analyses: number
+    likes: number
+    local_documents: number
+  }
+  gaps: {
+    missing_arxiv: number
+    missing_analysis: number
+    missing_local_document: number
+  }
+  latest_run: PipelineRun | null
+  events: Array<{
+    id: string
+    event_type: string
+    message: string
+    details: Record<string, unknown>
+    created_at: string
+  }>
+  stages: Array<{
+    id: string
+    name: string
+    status: string
+    ready: number
+    total: number
+    detail: string
+  }>
+  roles: Array<{ name: string; mode: string; purpose: string }>
+}
+
+export function getCognitionOverview(conference = "CVPR", year = 2026) {
+  const params = new URLSearchParams({ conference, year: String(year) })
+  return api<CognitionOverview>(`/api/cognition/overview?${params}`)
+}
+
+export function prepareCognitionHarness(conference = "CVPR", year = 2026) {
+  return api<{ status: string; message: string; run: PipelineRun }>("/api/cognition/prepare", {
+    method: "POST",
+    body: JSON.stringify({ conference, year }),
+  })
+}
+
 export interface ModelProviderConfig {
   id: string
   name: string
