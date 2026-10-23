@@ -1,18 +1,16 @@
 import uuid
-from datetime import UTC, datetime
-
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.api.pipelines import require_local_action
 from app.database import get_session
-from app.lineage_extractor import execute_lineage_run, grobid_ready
+from app.job_queue import enqueue_run
+from app.lineage_extractor import grobid_ready
 from app.models import (
     ConferenceEdition,
     Paper,
     PaperReference,
-    PipelineRun,
     ReferenceWork,
     RelatedWorkEvidence,
 )
@@ -185,30 +183,21 @@ def paper_lineage(
 )
 def start_extraction(
     paper_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ) -> dict:
     paper = session.get(Paper, paper_id)
     if paper is None:
         raise HTTPException(status_code=404, detail="论文不存在")
     run_key = f"lineage:{paper_id}"
-    active = session.scalar(
-        select(PipelineRun).where(
-            PipelineRun.run_key == run_key,
-            PipelineRun.status.in_(["QUEUED", "RUNNING"]),
-        )
-    )
-    if active:
-        return {"status": active.status, "run_id": str(active.id), "message": "该论文的谱系任务已在运行"}
-    run = PipelineRun(
+    run = enqueue_run(
+        session,
         run_key=run_key,
         pipeline="lineage",
-        status="QUEUED",
         config={"paper_id": str(paper_id)},
-        counters={},
-        started_at=datetime.now(UTC),
     )
-    session.add(run)
     session.commit()
-    background_tasks.add_task(execute_lineage_run, run.id, paper_id)
-    return {"status": "QUEUED", "run_id": str(run.id), "message": "相关工作谱系任务已启动"}
+    return {
+        "status": run.status,
+        "run_id": str(run.id),
+        "message": "相关工作解析任务已进入可恢复队列",
+    }

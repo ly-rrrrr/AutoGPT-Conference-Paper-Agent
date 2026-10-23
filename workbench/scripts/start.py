@@ -215,15 +215,38 @@ def wait_for_database() -> None:
 def sync_assets(env: dict[str, str]) -> None:
     script = (
         "from dataclasses import asdict; "
+        "from app.asset_registry import backfill_asset_registry; "
         "from app.config import get_settings; "
         "from app.database import session_scope; "
         "from app.importers import AssetImporter; "
         "ctx=session_scope(); session=ctx.__enter__(); "
         "summary=AssetImporter(session,get_settings().source_root).sync(); "
-        "ctx.__exit__(None,None,None); print('同步完成：'+str(asdict(summary)))"
+        "assets=backfill_asset_registry(session); "
+        "ctx.__exit__(None,None,None); print('同步完成：'+str(asdict(summary))+'；资产登记：'+str(assets))"
     )
     output = run([str(VENV_PYTHON), "-c", script], BACKEND_ROOT, env)
     print(output.strip(), flush=True)
+
+
+def start_worker(env: dict[str, str]) -> subprocess.Popen:
+    runtime_root = WORKBENCH_ROOT / "data" / "runtime"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    log_path = runtime_root / "worker.log"
+    log = log_path.open("a", encoding="utf-8")
+    process = subprocess.Popen(
+        [
+            str(VENV_PYTHON),
+            "-m",
+            "app.worker",
+        ],
+        cwd=BACKEND_ROOT,
+        env=env,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    print(f"[后台] 可恢复任务 Worker 已启动。日志：{log_path}", flush=True)
+    return process
 
 
 def main() -> int:
@@ -232,6 +255,8 @@ def main() -> int:
     print("科研工作台启动器 · http://127.0.0.1:8767", flush=True)
     if workbench_is_running():
         ensure_docker()
+        ensure_backend()
+        start_worker(runtime_env())
         print("工作台已经运行，正在打开浏览器。", flush=True)
         webbrowser.open(URL)
         if not LocalProbe().milvus_running():
@@ -259,6 +284,7 @@ def main() -> int:
     print(f"[4/5] 同步已有论文资产：{source_root()}", flush=True)
     sync_assets(env)
     print("[5/5] 工作台已就绪。Milvus 与 GROBID 首次启动可能仍在后台下载和加载。", flush=True)
+    start_worker(env)
     threading.Timer(1.2, lambda: webbrowser.open(URL)).start()
     return subprocess.call(
         [str(VENV_PYTHON), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8767"],

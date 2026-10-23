@@ -76,11 +76,23 @@ export interface Preferences {
   recent_works: Array<{ id: string; title: string; abstract: string | null; arxiv_id: string | null; notes: string | null }>
 }
 export interface DocumentRecord { paper_id: string; title: string; status: string; kind: string; path: string | null; parser: string | null; parser_version: string | null; last_error: string | null }
+export interface InfrastructureOverview {
+  services: Record<"postgresql" | "milvus" | "grobid", string>
+  assets: {
+    current: number
+    revisions: number
+    chunks: number
+    by_kind_status: Array<{ kind: string; status: string; count: number }>
+  }
+  vectors: { records: number; by_status: Record<string, number> }
+  jobs: { by_status: Record<string, number> }
+}
 export function getPreferences() { return api<Preferences>("/api/preferences") }
 export function addInterest(kind: "interest" | "keyword", value: string, weight = 1) { return api<PreferenceItem>("/api/preferences/interests", { method: "POST", body: JSON.stringify({ kind, value, weight }) }) }
 export function deleteInterest(id: string) { return api<void>(`/api/preferences/interests/${id}`, { method: "DELETE" }) }
 export function updateWeights(weights: Record<string, number>) { return api<Record<string, number>>("/api/preferences/weights", { method: "PUT", body: JSON.stringify(weights) }) }
 export function getDocuments() { return api<{ summary: Record<string, number>; total: number; items: DocumentRecord[] }>("/api/knowledge/documents") }
+export function getInfrastructureOverview() { return api<InfrastructureOverview>("/api/infrastructure/overview") }
 
 export interface LineageOverview {
   papers_with_lineage: number

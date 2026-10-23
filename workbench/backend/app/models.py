@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -221,6 +222,17 @@ class PipelineRun(Base, TimestampMixin):
     counters: Mapped[dict] = mapped_column(JSON, default=dict)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    available_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    lease_owner: Mapped[str | None] = mapped_column(String(160), index=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=2)
+    last_error: Mapped[str | None] = mapped_column(Text)
 
 
 class PipelineEvent(Base):
@@ -270,6 +282,95 @@ class DocumentAsset(Base, TimestampMixin):
     sha256: Mapped[str | None] = mapped_column(String(64))
     parser: Mapped[str | None] = mapped_column(String(120))
     parser_version: Mapped[str | None] = mapped_column(String(80))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    source_uri: Mapped[str | None] = mapped_column(Text)
+    media_type: Mapped[str | None] = mapped_column(String(120))
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    parent_asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("document_assets.id", ondelete="SET NULL"), index=True
+    )
+    derivation: Mapped[dict] = mapped_column(JSON, default=dict)
+    metadata_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class DocumentAssetRevision(Base):
+    __tablename__ = "document_asset_revisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_asset_id",
+            "content_sha256",
+            name="uq_document_asset_revision_content",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    document_asset_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("document_assets.id", ondelete="CASCADE"), index=True
+    )
+    content_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    path: Mapped[str] = mapped_column(Text)
+    source_uri: Mapped[str | None] = mapped_column(Text)
+    media_type: Mapped[str | None] = mapped_column(String(120))
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    producer: Mapped[str | None] = mapped_column(String(120))
+    producer_version: Mapped[str | None] = mapped_column(String(80))
+    metadata_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_revision_id", "chunk_key", name="uq_document_chunk_revision_key"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    asset_revision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("document_asset_revisions.id", ondelete="CASCADE"), index=True
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), index=True
+    )
+    chunk_key: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(40), index=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    section_path: Mapped[list] = mapped_column(JSON, default=list)
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    locator: Mapped[dict] = mapped_column(JSON, default=dict)
+    content_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    char_count: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class VectorIndexRecord(Base, TimestampMixin):
+    __tablename__ = "vector_index_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_chunk_id",
+            "embedding_model",
+            "index_version",
+            name="uq_vector_index_chunk_model_version",
+        ),
+        UniqueConstraint(
+            "collection_name", "entity_id", name="uq_vector_collection_entity"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    document_chunk_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("document_chunks.id", ondelete="CASCADE"), index=True
+    )
+    collection_name: Mapped[str] = mapped_column(String(255), index=True)
+    entity_id: Mapped[str] = mapped_column(String(80))
+    embedding_model: Mapped[str] = mapped_column(String(160), index=True)
+    embedding_dimension: Mapped[int] = mapped_column(Integer)
+    index_version: Mapped[str] = mapped_column(String(80))
+    content_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
 
 

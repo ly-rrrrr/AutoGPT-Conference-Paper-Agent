@@ -1,4 +1,5 @@
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
@@ -7,6 +8,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.asset_registry import ingest_tei_chunks, record_asset_revision, sha256_file
 from app.config import Settings, get_settings
 from app.database import session_scope
 from app.lineage_parser import parse_grobid_tei
@@ -140,14 +142,22 @@ def extract_lineage(session: Session, paper: Paper, settings: Settings | None = 
     pdf_path = paper_root / "source.pdf"
     pdf_asset = _asset(session, paper.id, "pdf")
     if pdf_path.is_file():
-        pdf_sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+        pdf_sha256 = sha256_file(pdf_path)
     else:
         pdf_asset.status = "DOWNLOADING"
         session.flush()
         pdf_sha256 = _download_pdf(paper, pdf_path, settings)
+    record_asset_revision(
+        session,
+        pdf_asset,
+        pdf_path,
+        content_sha256=pdf_sha256,
+        source_uri=_pdf_source_url(paper),
+        media_type="application/pdf",
+        producer="download",
+        producer_version="1",
+    )
     pdf_asset.status = "AVAILABLE"
-    pdf_asset.path = str(pdf_path)
-    pdf_asset.sha256 = pdf_sha256
 
     tei_asset = _asset(session, paper.id, "grobid_tei")
     tei_asset.status = "PARSING"
@@ -158,15 +168,29 @@ def extract_lineage(session: Session, paper: Paper, settings: Settings | None = 
     tei_sha256 = hashlib.sha256(tei_xml.encode("utf-8")).hexdigest()
     parsed = parse_grobid_tei(tei_xml)
     summary = ingest_lineage(session, paper, parsed, str(tei_path), tei_sha256)
+    tei_asset.parent_asset_id = pdf_asset.id
+    tei_asset.derivation = {
+        "kind": "parsed_from",
+        "source_asset_id": str(pdf_asset.id),
+        "source_sha256": pdf_sha256,
+    }
+    revision = record_asset_revision(
+        session,
+        tei_asset,
+        tei_path,
+        content_sha256=tei_sha256,
+        media_type="application/tei+xml",
+        producer=EXTRACTOR,
+        producer_version=EXTRACTOR_VERSION,
+        metadata={"source_asset_id": str(pdf_asset.id)},
+    )
+    chunk_count = ingest_tei_chunks(session, paper.id, revision, tei_xml)
     tei_asset.status = "PARSED"
-    tei_asset.path = str(tei_path)
-    tei_asset.sha256 = tei_sha256
-    tei_asset.parser = EXTRACTOR
-    tei_asset.parser_version = EXTRACTOR_VERSION
     tei_asset.last_error = None
     return {
         "references": summary.references,
         "evidence": summary.evidence,
+        "chunks": chunk_count,
         "warnings": summary.warnings,
     }
 
@@ -182,15 +206,20 @@ def execute_lineage_run(run_id: UUID, paper_id: UUID) -> None:
         try:
             run.counters = extract_lineage(session, paper)
             run.status = "SUCCESS"
+            run.ended_at = datetime.now(UTC)
         except LineageExtractionError as error:
             run.status = "FAILED"
             run.counters = {"error_code": error.code, "error_detail": str(error)}
+            run.last_error = str(error)
+            run.ended_at = datetime.now(UTC)
             tei_asset = _asset(session, paper.id, "grobid_tei")
             tei_asset.status = "FAILED"
             tei_asset.last_error = f"{error.code}: {error}"
         except Exception as error:
             run.status = "FAILED"
             run.counters = {"error_code": "UNEXPECTED_ERROR", "error_detail": str(error)}
+            run.last_error = str(error)
+            run.ended_at = datetime.now(UTC)
 
 
 def grobid_ready(settings: Settings | None = None) -> bool:

@@ -86,15 +86,7 @@ def test_lineage_overview_reports_parser_and_counts(
     assert response.json()["parser"] == {"name": "GROBID", "ready": True}
 
 
-def test_start_extraction_creates_observable_background_run(
-    client, seeded_db, monkeypatch
-):
-    called = []
-    monkeypatch.setattr(
-        "app.api.lineage.execute_lineage_run",
-        lambda run_id, paper_id: called.append((run_id, paper_id)),
-    )
-
+def test_start_extraction_creates_observable_durable_run(client, seeded_db):
     response = client.post(
         f"/api/lineage/papers/{seeded_db['matched'].id}/extract",
         headers={"X-Workbench-Request": "1"},
@@ -102,4 +94,6 @@ def test_start_extraction_creates_observable_background_run(
 
     assert response.status_code == 202
     assert response.json()["status"] == "QUEUED"
-    assert called and called[0][1] == seeded_db["matched"].id
+    run = client.get(f"/api/runs/{response.json()['run_id']}").json()
+    assert run["config"]["paper_id"] == str(seeded_db["matched"].id)
+    assert run["attempt_count"] == 0

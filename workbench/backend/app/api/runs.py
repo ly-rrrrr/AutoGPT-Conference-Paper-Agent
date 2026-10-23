@@ -22,6 +22,13 @@ def _run_dict(run: PipelineRun) -> dict:
         "counters": run.counters,
         "started_at": run.started_at,
         "ended_at": run.ended_at,
+        "available_at": run.available_at,
+        "lease_owner": run.lease_owner,
+        "lease_expires_at": run.lease_expires_at,
+        "heartbeat_at": run.heartbeat_at,
+        "attempt_count": run.attempt_count,
+        "max_attempts": run.max_attempts,
+        "last_error": run.last_error,
         "created_at": run.created_at,
         "updated_at": run.updated_at,
     }
