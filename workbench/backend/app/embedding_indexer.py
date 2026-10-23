@@ -34,7 +34,12 @@ def request_embeddings(
         response = httpx.post(
             f"{config.base_url.rstrip('/')}/embeddings",
             headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": config.model_name, "input": texts, "encoding_format": "float"},
+            json={
+                "model": config.model_name,
+                "input": texts,
+                "encoding_format": "float",
+                "dimensions": config.dimension,
+            },
             timeout=timeout_seconds,
         )
         response.raise_for_status()

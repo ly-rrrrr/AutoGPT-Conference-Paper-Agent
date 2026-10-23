@@ -1,9 +1,9 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from sqlalchemy import func, select
 
 from app.asset_registry import ingest_tei_chunks, record_asset_revision
-from app.embedding_indexer import index_document_chunks, pending_chunks
+from app.embedding_indexer import index_document_chunks, pending_chunks, request_embeddings
 from app.models import DocumentAsset, EmbeddingProviderConfig, VectorIndexRecord
 
 
@@ -21,6 +21,29 @@ class FakeVectorStore:
 
     def close(self):
         pass
+
+
+def test_embedding_request_sends_configured_dimensions():
+    config = EmbeddingProviderConfig(
+        name="Embedding",
+        provider="Compatible",
+        base_url="https://example.com/v1",
+        model_name="text-embedding-3-large",
+        dimension=1024,
+        secret_ref="embedding:test",
+        is_default=True,
+        status="ACTIVE",
+    )
+    response = Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "data": [{"index": 0, "embedding": [0.1] * 1024}]
+    }
+    with patch("app.embedding_indexer.httpx.post", return_value=response) as post:
+        vectors = request_embeddings(config, "secret", ["method paragraph"])
+
+    assert len(vectors[0]) == 1024
+    assert post.call_args.kwargs["json"]["dimensions"] == 1024
 
 
 def test_incremental_index_skips_unchanged_chunks(
