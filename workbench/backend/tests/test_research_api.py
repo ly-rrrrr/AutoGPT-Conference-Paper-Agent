@@ -150,3 +150,32 @@ def test_research_runtime_exposes_adapter_readiness(client):
     body = response.json()
     assert body["ready"] is False
     assert any(item["id"] == "artifact-store" for item in body["components"])
+
+
+def test_research_brief_reports_material_readiness(client, seeded_db):
+    brief = client.post(
+        "/api/research/briefs",
+        headers=ACTION_HEADERS,
+        json={
+            "title": "ECCV evidence readiness",
+            "objective": "Identify evidence-backed limitations.",
+            "scope": {
+                "conference": "ECCV",
+                "year": 2026,
+                "research_scale": "conference_landscape",
+                "focus": "robustness",
+            },
+            "tool_policy": {},
+            "budget": {"max_model_calls": 12, "max_papers": 20},
+            "output_preferences": {"must_answer": ["What remains unresolved?"]},
+        },
+    ).json()
+
+    detail = client.get(f"/api/research/briefs/{brief['id']}").json()
+
+    assert detail["coverage"]["paper_count"] == 2
+    assert detail["coverage"]["analysis_count"] == 1
+    assert detail["coverage"]["document_count"] == 0
+    assert detail["coverage"]["status"] == "LIMITED"
+    assert detail["coverage"]["warnings"]
+    assert detail["events"] == []

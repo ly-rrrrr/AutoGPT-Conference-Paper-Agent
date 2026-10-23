@@ -37,8 +37,13 @@ const form = reactive({
   objective: "",
   conference: "CVPR",
   year: 2026,
+  researchScale: "conference_landscape",
+  focus: "",
+  mustAnswer: "",
+  boundaries: "",
   outputLanguage: "zh-CN",
   maxModelCalls: 40,
+  maxPapers: 24,
 })
 
 const evidenceCounts = computed(() => {
@@ -70,8 +75,15 @@ function editSelected() {
   form.objective = selected.value.objective
   form.conference = String(selected.value.scope.conference ?? "")
   form.year = Number(selected.value.scope.year ?? 2026)
+  form.researchScale = String(selected.value.scope.research_scale ?? "conference_landscape")
+  form.focus = String(selected.value.scope.focus ?? "")
+  form.mustAnswer = Array.isArray(selected.value.output_preferences.must_answer)
+    ? selected.value.output_preferences.must_answer.join("\n")
+    : ""
+  form.boundaries = String(selected.value.output_preferences.boundaries ?? "")
   form.outputLanguage = String(selected.value.output_preferences.language ?? "zh-CN")
   form.maxModelCalls = Number(selected.value.budget.max_model_calls ?? 40)
+  form.maxPapers = Number(selected.value.budget.max_papers ?? 24)
   window.scrollTo({ top: 0, behavior: "smooth" })
 }
 
@@ -81,6 +93,10 @@ function resetForm() {
   form.objective = ""
   form.conference = "CVPR"
   form.year = 2026
+  form.researchScale = "conference_landscape"
+  form.focus = ""
+  form.mustAnswer = ""
+  form.boundaries = ""
 }
 
 async function submitBrief() {
@@ -91,14 +107,24 @@ async function submitBrief() {
     const payload = {
       title: form.title.trim(),
       objective: form.objective.trim(),
-      scope: { conference: form.conference.trim().toUpperCase(), year: form.year },
+      scope: {
+        conference: form.conference.trim().toUpperCase(),
+        year: form.year,
+        research_scale: form.researchScale,
+        focus: form.focus.trim(),
+      },
       tool_policy: {
         evidence_research: "paperqa2-adapter",
         semantic_program: "dspy-adapter",
         allow_counterevidence_search: true,
       },
-      budget: { max_model_calls: form.maxModelCalls },
-      output_preferences: { language: form.outputLanguage, mode: "interactive_atlas" },
+      budget: { max_model_calls: form.maxModelCalls, max_papers: form.maxPapers },
+      output_preferences: {
+        language: form.outputLanguage,
+        mode: "interactive_atlas",
+        must_answer: form.mustAnswer.split("\n").map((item) => item.trim()).filter(Boolean),
+        boundaries: form.boundaries.trim(),
+      },
     }
     const saved = editingId.value
       ? await updateResearchBrief(editingId.value, payload)
@@ -180,28 +206,37 @@ onBeforeUnmount(() => clearInterval(pollTimer))
         </div>
         <form class="research-form" @submit.prevent="submitBrief">
           <label><span>任务名称</span><input v-model="form.title" required maxlength="300" placeholder="例如：CVPR 2025 方法思想迁移地图" /></label>
-          <label><span>真正想回答的问题</span><textarea v-model="form.objective" required maxlength="10000" rows="6" placeholder="不要写固定分类规则；描述你希望系统主动发现、比较和解释什么。" /></label>
+          <label><span>真正想回答的问题</span><textarea v-model="form.objective" required maxlength="10000" rows="5" placeholder="描述希望系统主动发现、比较和解释什么；不要预先规定结论。" /></label>
           <div class="form-pair">
             <label><span>会议</span><input v-model="form.conference" required maxlength="40" /></label>
             <label><span>年份</span><input v-model.number="form.year" required type="number" min="1900" max="2100" /></label>
           </div>
           <div class="form-pair">
+            <label><span>研究尺度</span><select v-model="form.researchScale"><option value="conference_landscape">会议年度全景</option><option value="method_family">方法家族比较</option><option value="paper_deep_dive">论文深挖</option><option value="open_discovery">开放问题探索</option></select></label>
+            <label><span>领域 / 方法焦点</span><input v-model="form.focus" maxlength="500" placeholder="例如：多模态学习、长尾与噪声鲁棒性" /></label>
+          </div>
+          <label><span>必须回答的问题（每行一个）</span><textarea v-model="form.mustAnswer" maxlength="5000" rows="4" placeholder="哪些困难被多数方法回避？&#10;泛化性与效率如何权衡？" /></label>
+          <label><span>研究边界与排除项</span><textarea v-model="form.boundaries" maxlength="3000" rows="3" placeholder="例如：只基于已有论文材料；证据不足时明确无法回答。" /></label>
+          <div class="form-pair">
             <label><span>输出语言</span><select v-model="form.outputLanguage"><option value="zh-CN">中文</option><option value="en">English</option></select></label>
-            <label><span>模型调用预算</span><input v-model.number="form.maxModelCalls" type="number" min="1" max="10000" /></label>
+            <label><span>模型调用预算</span><input v-model.number="form.maxModelCalls" type="number" min="1" max="40" /></label>
+          </div>
+          <div class="form-pair">
+            <label><span>最多深读论文数</span><input v-model.number="form.maxPapers" type="number" min="1" max="200" /></label>
           </div>
           <div class="form-actions"><button class="primary-button" type="submit" :disabled="creating"><PhPlus /> {{ creating ? "正在保存" : editingId ? "更新任务草案" : "保存任务草案" }}</button><button v-if="editingId" class="quiet-button" type="button" @click="resetForm">取消编辑</button></div>
         </form>
       </article>
 
       <article class="panel research-contract">
-        <div class="panel__heading"><div><p class="page-kicker">ACTIVE RESEARCH LOOP</p><h3>未来执行语义</h3></div><PhBrain :size="21" /></div>
+        <div class="panel__heading"><div><p class="page-kicker">ACTIVE RESEARCH LOOP</p><h3>实际执行链路</h3></div><PhBrain :size="21" /></div>
         <ol>
           <li><strong>理解目标</strong><span>确定问题、范围、已有材料与未知部分。</span></li>
           <li><strong>提出候选认识</strong><span>由模型主动提出值得调查的现象，而非套用预置类别。</span></li>
           <li><strong>调用研究工具</strong><span>按需阅读论文、搜索相邻工作、寻找支持与反证。</span></li>
           <li><strong>修订与表达</strong><span>保留不确定性、反方证据和来源，形成可交互产物。</span></li>
         </ol>
-        <p class="runtime-note"><PhFlask /> PaperQA2 负责证据研究，DSPy 负责可优化的语义程序；AutoGPT 保留外层任务调度。</p>
+        <p class="runtime-note"><PhFlask /> 当前由 OpenAI-compatible 主动研究适配器选择目录检索与结构化分析工具；PaperQA2 全文证据和 DSPy 可优化语义程序仍是待接入能力。</p>
         <div v-if="runtime" class="runtime-components">
           <div v-for="component in runtime.components" :key="component.id">
             <span :data-status="component.status"></span>
@@ -229,9 +264,12 @@ onBeforeUnmount(() => clearInterval(pollTimer))
           <dl class="brief-meta">
             <div v-for="(value, key) in selected.scope" :key="key"><dt>{{ key }}</dt><dd>{{ displayValue(value) }}</dd></div>
           </dl>
-          <div class="coverage-strip" :data-limited="selected.coverage.paper_count < 10">
-            <strong>范围内 {{ selected.coverage.paper_count }} 篇论文</strong>
-            <span>其中 {{ selected.coverage.analysis_count }} 篇已有结构化分析。系统只会基于实际可用材料形成认识，不会把材料缺口伪装成年度结论。</span>
+          <div class="coverage-strip" :data-status="selected.coverage.status">
+            <strong>{{ selected.coverage.status }} · 范围内 {{ selected.coverage.paper_count }} 篇论文</strong>
+            <span>{{ selected.coverage.analysis_count }} 篇有结构化分析，{{ selected.coverage.document_count }} 篇有本地文档。系统只基于实际可用材料形成认识。</span>
+            <ul v-if="selected.coverage.blockers.length || selected.coverage.warnings.length">
+              <li v-for="item in [...selected.coverage.blockers, ...selected.coverage.warnings]" :key="item">{{ item }}</li>
+            </ul>
           </div>
           <div class="artifact-metrics">
             <div><strong>{{ selected.artifacts.length }}</strong><span>版本化认知产物</span></div>
@@ -240,12 +278,18 @@ onBeforeUnmount(() => clearInterval(pollTimer))
             <div><strong>{{ evidenceCounts.CHALLENGES }}</strong><span>反方证据</span></div>
           </div>
           <div class="research-actions">
-            <button class="primary-button" type="button" :disabled="starting || selected.status === 'RUNNING' || !runtime?.ready" @click="startResearch"><PhPlay weight="fill" /> {{ selected.status === "RUNNING" ? "研究进行中" : starting ? "正在启动" : "启动主动研究" }}</button>
+            <button class="primary-button" type="button" :disabled="starting || selected.status === 'RUNNING' || !runtime?.ready || selected.coverage.status === 'BLOCKED'" @click="startResearch"><PhPlay weight="fill" /> {{ selected.status === "RUNNING" ? "研究进行中" : starting ? "正在启动" : "启动主动研究" }}</button>
             <button class="quiet-button" type="button" :disabled="selected.status === 'RUNNING'" @click="editSelected"><PhPencilSimple /> 编辑任务</button>
             <span v-if="!runtime?.ready">请先到“系统设置 → 模型配置”保存默认模型密钥。</span>
             <span v-else>将调用默认模型，并按任务预算自主读取本地论文材料。</span>
           </div>
           <div v-if="selected.runs.length" class="research-run-state"><strong>最近运行：{{ selected.runs[0].status }}</strong><code>{{ JSON.stringify(selected.runs[0].counters) }}</code></div>
+          <section v-if="selected.events.length" class="research-timeline">
+            <div class="panel__heading"><div><p class="page-kicker">TRACE</p><h4>研究轨迹</h4></div><span>{{ selected.events.length }}</span></div>
+            <ol>
+              <li v-for="event in selected.events" :key="event.id"><i></i><div><strong>{{ event.message }}</strong><small>{{ event.event_type }} · {{ new Date(event.created_at).toLocaleString() }}</small></div></li>
+            </ol>
+          </section>
           <section v-if="selected.insights.length" class="insight-list">
             <article v-for="insight in selected.insights" :key="insight.id">
               <div><span>{{ insight.epistemic_status }}</span><span>{{ insight.status }}</span></div>

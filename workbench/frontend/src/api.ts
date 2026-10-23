@@ -224,7 +224,23 @@ export interface ResearchBriefDetail extends ResearchBrief {
   insights: ResearchInsight[]
   dependencies: Array<{ parent_artifact_id: string; child_artifact_id: string; relation: string }>
   runs: Array<{ id: string; status: string; counters: Record<string, unknown>; started_at: string | null; ended_at: string | null }>
-  coverage: { paper_count: number; analysis_count: number }
+  coverage: {
+    paper_count: number
+    analysis_count: number
+    document_count: number
+    status: "READY" | "LIMITED" | "BLOCKED"
+    blockers: string[]
+    warnings: string[]
+  }
+  events: Array<{
+    id: string
+    run_id: string
+    level: string
+    event_type: string
+    message: string
+    details: Record<string, unknown>
+    created_at: string
+  }>
 }
 
 export interface ResearchBriefInput {

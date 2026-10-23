@@ -87,9 +87,15 @@ TOOLS = [
 
 
 class ResearchCorpusTools:
-    def __init__(self, session: Session, brief: ResearchBrief):
+    def __init__(
+        self,
+        session: Session,
+        brief: ResearchBrief,
+        run_id: uuid.UUID | None = None,
+    ):
         self.session = session
         self.brief = brief
+        self.run_id = run_id
         self.accessed_paper_ids: set[uuid.UUID] = set()
 
     def _scope_query(self):
@@ -102,16 +108,61 @@ class ResearchCorpusTools:
             query = query.where(ConferenceEdition.conference == str(conference).upper())
         if year:
             query = query.where(ConferenceEdition.year == int(year))
+        requested_ids = []
+        for value in self.brief.scope.get("paper_ids", []):
+            try:
+                requested_ids.append(uuid.UUID(str(value)))
+            except (TypeError, ValueError):
+                continue
+        if requested_ids:
+            query = query.where(Paper.id.in_(requested_ids))
         return query
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        self.log_event(
+            "TOOL_STARTED",
+            f"研究 Agent 调用 {name}",
+            {"tool": name, "arguments": arguments},
+        )
         if name == "scope_overview":
-            return self.scope_overview()
-        if name == "search_papers":
-            return self.search_papers(str(arguments["query"]), int(arguments["limit"]))
-        if name == "inspect_papers":
-            return self.inspect_papers(arguments["paper_ids"])
-        return {"error": f"unknown tool: {name}"}
+            result = self.scope_overview()
+        elif name == "search_papers":
+            result = self.search_papers(str(arguments["query"]), int(arguments["limit"]))
+        elif name == "inspect_papers":
+            result = self.inspect_papers(arguments["paper_ids"])
+        else:
+            result = {"error": f"unknown tool: {name}"}
+        self.log_event(
+            "TOOL_COMPLETED",
+            f"{name} 已返回研究材料",
+            self._result_summary(name, result),
+        )
+        return result
+
+    def log_event(self, event_type: str, message: str, details: dict[str, Any]) -> None:
+        if self.run_id is None:
+            return
+        self.session.add(
+            PipelineEvent(
+                pipeline_run_id=self.run_id,
+                level="INFO",
+                event_type=event_type,
+                message=message,
+                details=details,
+            )
+        )
+        self.session.commit()
+
+    @staticmethod
+    def _result_summary(name: str, result: dict[str, Any]) -> dict[str, Any]:
+        if name == "scope_overview":
+            return {"paper_count": result.get("paper_count", 0)}
+        items = result.get("items", [])
+        return {
+            "item_count": len(items),
+            "paper_ids": [item.get("paper_id") for item in items if item.get("paper_id")],
+            "warning": result.get("warning"),
+        }
 
     def scope_overview(self) -> dict[str, Any]:
         papers = list(self.session.scalars(self._scope_query()))
@@ -150,8 +201,12 @@ class ResearchCorpusTools:
         }
 
     def inspect_papers(self, paper_ids: list[str]) -> dict[str, Any]:
+        max_papers = min(max(int(self.brief.budget.get("max_papers", 24)), 1), 200)
+        remaining = max_papers - len(self.accessed_paper_ids)
+        if remaining <= 0:
+            return {"items": [], "warning": f"已达到论文读取预算（{max_papers} 篇）"}
         valid_ids = []
-        for value in paper_ids[:8]:
+        for value in paper_ids[: min(8, remaining)]:
             try:
                 valid_ids.append(uuid.UUID(value))
             except ValueError:
@@ -228,6 +283,9 @@ class OpenAICompatibleResearchAdapter:
                 "content": (
                     f"研究任务：{brief.title}\n研究目标：{brief.objective}\n"
                     f"范围：{json.dumps(brief.scope, ensure_ascii=False)}\n"
+                    f"必须回答：{json.dumps(brief.output_preferences.get('must_answer', []), ensure_ascii=False)}\n"
+                    f"研究边界：{brief.output_preferences.get('boundaries', '')}\n"
+                    f"预算：{json.dumps(brief.budget, ensure_ascii=False)}\n"
                     "请自主决定调查路径，并在证据足够或预算不足时形成当前最可靠的认识。"
                 ),
             }
@@ -253,6 +311,11 @@ class OpenAICompatibleResearchAdapter:
                 response.raise_for_status()
                 body = response.json()
                 calls += 1
+                tools.log_event(
+                    "MODEL_STEP_COMPLETED",
+                    f"模型完成第 {calls} 轮判断",
+                    {"model_call": calls, "response_id": body.get("id")},
+                )
                 output = body.get("output", [])
                 input_items.extend(output)
                 tool_calls = [item for item in output if item.get("type") == "function_call"]
@@ -273,6 +336,11 @@ class OpenAICompatibleResearchAdapter:
                     continue
                 text = self._output_text(body)
                 if text:
+                    tools.log_event(
+                        "REPORT_SYNTHESIZED",
+                        "模型结束调查并形成研究报告",
+                        {"model_calls": calls},
+                    )
                     return self._parse_report(text), calls
                 raise RuntimeError("模型没有返回工具调用或研究报告")
         raise RuntimeError(f"研究任务达到模型调用预算上限（{max_calls}）但没有形成报告")
@@ -358,7 +426,17 @@ def run_research_brief(brief_id: uuid.UUID, run_id: uuid.UUID) -> None:
             return
         try:
             provider = _provider_snapshot(session)
-            tools = ResearchCorpusTools(session, brief)
+            session.add(
+                PipelineEvent(
+                    pipeline_run_id=run.id,
+                    level="INFO",
+                    event_type="RESEARCH_STARTED",
+                    message="主动研究开始：先检查范围，再由模型决定检索与阅读路径",
+                    details={"scope": brief.scope, "budget": brief.budget},
+                )
+            )
+            session.commit()
+            tools = ResearchCorpusTools(session, brief, run.id)
             report, model_calls = OpenAICompatibleResearchAdapter(provider).run(
                 brief, tools
             )
@@ -456,6 +534,15 @@ def run_research_brief(brief_id: uuid.UUID, run_id: uuid.UUID) -> None:
                 "insights": persisted,
             }
             run.ended_at = datetime.now(UTC)
+            session.add(
+                PipelineEvent(
+                    pipeline_run_id=run.id,
+                    level="INFO",
+                    event_type="RESEARCH_COMPLETED",
+                    message="主动研究完成，候选洞察与证据引用已保存",
+                    details=run.counters,
+                )
+            )
         except Exception as error:
             brief.status = "FAILED"
             run.status = "FAILED"

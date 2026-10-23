@@ -41,7 +41,15 @@ it("saves a goal-driven research brief without starting a fake workflow", async 
     .mockResolvedValueOnce({ items: [createdBrief], total: 1 })
   vi.mocked(getResearchBrief).mockResolvedValue({
     ...createdBrief,
-    artifacts: [], evidence: [], insights: [], dependencies: [], runs: [], coverage: { paper_count: 1, analysis_count: 1 },
+    artifacts: [], evidence: [], insights: [], dependencies: [], runs: [], events: [],
+    coverage: {
+      paper_count: 1,
+      analysis_count: 1,
+      document_count: 0,
+      status: "LIMITED",
+      blockers: [],
+      warnings: ["尚无可下钻的本地全文。"],
+    },
   })
 
   const wrapper = mount(ResearchView)

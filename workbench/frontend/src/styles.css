@@ -212,7 +212,9 @@ a { color: inherit; }
 .brief-meta dt { color: var(--muted); }
 .brief-meta dd { margin: 0; font-family: "DM Mono", monospace; }
 .coverage-strip { display: grid; gap: 4px; margin-bottom: 17px; padding: 12px 14px; border-left: 3px solid #61b77a; color: #476159; background: #edf3ec; font-size: 11px; line-height: 1.6; }
-.coverage-strip[data-limited="true"] { border-left-color: #c18b3d; color: #6b5828; background: #f7f0dc; }
+.coverage-strip[data-status="LIMITED"] { border-left-color: #c18b3d; color: #6b5828; background: #f7f0dc; }
+.coverage-strip[data-status="BLOCKED"] { border-left-color: #b76556; color: #70443b; background: #f6e9e5; }
+.coverage-strip ul { margin: 5px 0 0; padding-left: 17px; }
 .artifact-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); }
 .artifact-metrics div { display: grid; gap: 5px; padding: 15px; border-right: 1px solid var(--line); }
 .artifact-metrics div:last-child { border: 0; }
@@ -234,6 +236,14 @@ a { color: inherit; }
 .research-actions > span { color: var(--muted); font-size: 11px; }
 .research-run-state { display: flex; justify-content: space-between; gap: 15px; margin-top: 13px; padding: 10px 12px; color: var(--muted); background: #efefe9; font-size: 10px; }
 .research-run-state code { overflow-wrap: anywhere; }
+.research-timeline { margin-top: 18px; padding: 15px 0 4px; border-top: 1px solid var(--line); }
+.research-timeline h4 { margin: 0; }
+.research-timeline ol { display: grid; gap: 0; margin: 10px 0 0; padding: 0; list-style: none; }
+.research-timeline li { display: grid; grid-template-columns: 12px 1fr; gap: 9px; padding: 9px 0; border-bottom: 1px solid #e3e4dc; }
+.research-timeline i { width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--green); }
+.research-timeline strong, .research-timeline small { display: block; }
+.research-timeline strong { font-size: 11px; }
+.research-timeline small { margin-top: 4px; color: var(--muted); font: 500 9px "DM Mono", monospace; }
 .model-config-grid { display: grid; grid-template-columns: minmax(290px, .7fr) minmax(0, 1.3fr); gap: 18px; }
 .provider-list { align-self: start; }
 .provider-card { width: 100%; display: grid; grid-template-columns: 9px 1fr auto; gap: 10px; align-items: center; padding: 15px 12px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; cursor: pointer; }

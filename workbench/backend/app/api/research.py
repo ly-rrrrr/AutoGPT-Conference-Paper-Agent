@@ -16,6 +16,7 @@ from app.models import (
     ModelProviderConfig,
     Paper,
     PaperAnalysis,
+    PipelineEvent,
     PipelineRun,
     ResearchArtifact,
     ResearchArtifactDependency,
@@ -159,6 +160,73 @@ def _insight(item: InsightProposal) -> dict:
     }
 
 
+def _scoped_papers(brief: ResearchBrief):
+    statement = select(Paper.id).join(
+        ConferenceEdition, Paper.conference_edition_id == ConferenceEdition.id
+    )
+    conference = brief.scope.get("conference")
+    year = brief.scope.get("year")
+    if conference:
+        statement = statement.where(
+            ConferenceEdition.conference == str(conference).upper()
+        )
+    if year:
+        statement = statement.where(ConferenceEdition.year == int(year))
+    paper_ids = []
+    for value in brief.scope.get("paper_ids", []):
+        try:
+            paper_ids.append(uuid.UUID(str(value)))
+        except (TypeError, ValueError):
+            continue
+    if paper_ids:
+        statement = statement.where(Paper.id.in_(paper_ids))
+    return statement
+
+
+def _coverage(brief: ResearchBrief, session: Session) -> dict:
+    scoped_papers = _scoped_papers(brief).subquery()
+    paper_count = session.scalar(select(func.count()).select_from(scoped_papers)) or 0
+    analysis_count = (
+        session.scalar(
+            select(func.count(func.distinct(PaperAnalysis.paper_id))).where(
+                PaperAnalysis.paper_id.in_(select(scoped_papers.c.id)),
+                PaperAnalysis.status == "SUCCESS",
+            )
+        )
+        or 0
+    )
+    document_count = (
+        session.scalar(
+            select(func.count(func.distinct(DocumentAsset.paper_id))).where(
+                DocumentAsset.paper_id.in_(select(scoped_papers.c.id)),
+                DocumentAsset.path.is_not(None),
+            )
+        )
+        or 0
+    )
+    blockers = []
+    warnings = []
+    if paper_count == 0:
+        blockers.append("当前范围没有论文，请修改会议、年份或论文集合。")
+    elif analysis_count == 0:
+        blockers.append("当前范围没有可读取的结构化论文分析，请先运行论文分析。")
+    if paper_count and paper_count < 10:
+        warnings.append("论文数量过少，不适合外推为会议年度趋势。")
+    if analysis_count and analysis_count < paper_count:
+        warnings.append(f"仍有 {paper_count - analysis_count} 篇论文缺少结构化分析。")
+    if document_count == 0:
+        warnings.append("尚无可下钻的本地全文，实验漏洞与原文定位能力受限。")
+    status = "BLOCKED" if blockers else "LIMITED" if warnings else "READY"
+    return {
+        "paper_count": paper_count,
+        "analysis_count": analysis_count,
+        "document_count": document_count,
+        "status": status,
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+
+
 @router.get("/briefs")
 def list_briefs(session: Session = Depends(get_session)) -> dict:
     items = list(
@@ -202,28 +270,7 @@ def get_brief(brief_id: uuid.UUID, session: Session = Depends(get_session)) -> d
     brief = session.get(ResearchBrief, brief_id)
     if brief is None:
         raise HTTPException(status_code=404, detail="研究任务不存在")
-    paper_scope = select(Paper.id).join(
-        ConferenceEdition, Paper.conference_edition_id == ConferenceEdition.id
-    )
-    conference = brief.scope.get("conference")
-    year = brief.scope.get("year")
-    if conference:
-        paper_scope = paper_scope.where(
-            ConferenceEdition.conference == str(conference).upper()
-        )
-    if year:
-        paper_scope = paper_scope.where(ConferenceEdition.year == int(year))
-    scoped_papers = paper_scope.subquery()
-    paper_count = session.scalar(select(func.count()).select_from(scoped_papers)) or 0
-    analysis_count = (
-        session.scalar(
-            select(func.count(func.distinct(PaperAnalysis.paper_id))).where(
-                PaperAnalysis.paper_id.in_(select(scoped_papers.c.id)),
-                PaperAnalysis.status == "SUCCESS",
-            )
-        )
-        or 0
-    )
+    coverage = _coverage(brief, session)
     artifacts = list(
         session.scalars(
             select(ResearchArtifact)
@@ -291,10 +338,24 @@ def get_brief(brief_id: uuid.UUID, session: Session = Depends(get_session)) -> d
             }
             for item in runs
         ],
-        "coverage": {
-            "paper_count": paper_count,
-            "analysis_count": analysis_count,
-        },
+        "coverage": coverage,
+        "events": [
+            {
+                "id": str(event.id),
+                "run_id": str(event.pipeline_run_id),
+                "level": event.level,
+                "event_type": event.event_type,
+                "message": event.message,
+                "details": event.details,
+                "created_at": event.created_at,
+            }
+            for event in session.scalars(
+                select(PipelineEvent)
+                .where(PipelineEvent.pipeline_run_id.in_([item.id for item in runs]))
+                .order_by(PipelineEvent.created_at.desc())
+                .limit(100)
+            )
+        ] if runs else [],
     }
 
 
@@ -327,6 +388,9 @@ def start_research_brief(
     )
     if config is None or not get_secret(config.secret_ref):
         raise HTTPException(status_code=409, detail="请先在模型配置中保存默认模型与 API Key")
+    coverage = _coverage(brief, session)
+    if coverage["blockers"]:
+        raise HTTPException(status_code=409, detail=coverage["blockers"][0])
     now = datetime.now(UTC)
     run = PipelineRun(
         run_key=f"research-{brief.id}-{uuid.uuid4().hex[:8]}",
