@@ -14,6 +14,7 @@ from app.database import session_scope
 from app.lineage_parser import parse_grobid_tei
 from app.lineage_service import EXTRACTOR, EXTRACTOR_VERSION, ingest_lineage
 from app.models import DocumentAsset, Paper, PipelineRun
+from app.network import outbound_proxy
 from app.storage import get_asset_root
 
 
@@ -77,6 +78,7 @@ def _download_pdf(paper: Paper, target: Path, settings: Settings) -> str:
             follow_redirects=True,
             timeout=60,
             headers={"User-Agent": "ResearchAtlas/0.2"},
+            proxy=outbound_proxy(),
         ) as response:
             response.raise_for_status()
             if not _trusted_pdf_url(str(response.url)):
