@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     DocumentChunk,
+    DocumentAsset,
+    DocumentAssetRevision,
     EmbeddingProviderConfig,
     VectorIndexRecord,
 )
@@ -75,7 +77,18 @@ def pending_chunks(
     return list(
         session.scalars(
             select(DocumentChunk)
-            .where(~existing)
+            .join(
+                DocumentAssetRevision,
+                DocumentAssetRevision.id == DocumentChunk.asset_revision_id,
+            )
+            .join(
+                DocumentAsset,
+                DocumentAsset.id == DocumentAssetRevision.document_asset_id,
+            )
+            .where(
+                DocumentAsset.sha256 == DocumentAssetRevision.content_sha256,
+                ~existing,
+            )
             .order_by(DocumentChunk.paper_id, DocumentChunk.ordinal)
             .limit(limit)
         )

@@ -61,6 +61,6 @@ collection 名称由工作台前缀、资产类型和安全化的模型版本组
 
 截至 2026-10-23，前两项已经落地。每个当前资产指向按 SHA-256 去重的不可变版本；TEI 会进一步形成带章节路径、页码、定位符和独立内容哈希的正文块。`PipelineRun` 同时承担持久化任务记录，Worker 使用数据库行锁、执行租约、有限重试和事件日志接管 `lineage` 任务。网页进程中断不会再使已排队任务消失。
 
-第三项已完成 Milvus 适配器、独立 Embedding 配置、PostgreSQL `vector_index_records` 回查边界和可恢复增量索引任务。系统有意不创建空 collection；只有用户保存 Embedding 提供商、模型和准确维度，并在知识资产页明确启动后，才建立模型隔离的 collection。索引器按正文块内容哈希、模型和索引版本跳过已成功记录，批量请求 embeddings 并批量 upsert，避免重复消耗。
+第三项已完成 Milvus 适配器、独立 Embedding 配置、PostgreSQL `vector_index_records` 回查边界和可恢复增量索引任务。系统有意不创建空 collection；只有用户保存 Embedding 提供商、模型和准确维度，并在知识资产页明确启动后，才建立模型隔离的 collection。索引器只读取每篇论文当前内容哈希对应的资产版本，历史版本仅保留用于追溯；并按正文块内容哈希、模型、维度和索引版本跳过已成功记录，批量请求 embeddings 并批量 upsert，避免重复消耗。
 
 Spark 当前不进入系统。只有语料达到需要跨多台机器执行全量离线转换时，才把它作为批处理工具评估；它不承担在线检索或 AI 工作流调度。
